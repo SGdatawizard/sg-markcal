@@ -449,7 +449,8 @@
         box-shadow: 0 12px 30px rgba(20, 24, 38, 0.14);
         z-index: 20;
       }
-      .task.short-activity:hover {
+      .task.short-activity:hover,
+      .task.expandable:hover {
         width: var(--hover-width, 320px) !important;
         min-width: var(--hover-width, 320px);
       }
@@ -1233,14 +1234,12 @@
           bg = isDone ? "#f3f4f6" : isBlocked ? "#fff1f2" : "#fff",
           text = isDone ? "#6b7280" : "#172033",
           top = 12 + (item.layoutRow || 0) * 68,
-          hover = Math.min(
-            520,
-            Math.max(
-              260,
-              String(item.title || "Untitled activity").length * 9 + 110,
-            ),
-          );
-        return `<div class="task ${isShort ? "short-activity" : ""} ${item.id === selectedId ? "selected" : ""}" data-task-id="${item.id}" data-label="${esc(item.title || "Untitled activity")}" style="left:${left}%;width:${width}%;top:${top}px;--task-colour:${colour};--hover-width:${hover}px;background:${bg};color:${text}"><div class="resize-handle resize-left" data-resize="left" data-task-id="${item.id}"></div><div class="resize-handle resize-right" data-resize="right" data-task-id="${item.id}"></div><div class="task-content"><div class="task-title">${esc(item.title || "Untitled activity")}</div><div class="task-meta">${esc(item.owner || "Unassigned")} • ${esc(item.status || "Planned")} • ${categoryIcon(item.category)} ${esc(item.category || "Uncategorised")} • ${esc(item.priority || "Tier 1")}</div></div><span class="status-icon">${statusIcon(item.status)}</span></div>`;
+          titleLen = String(item.title || "Untitled activity").length,
+          metaLen = String(`${item.owner || "Unassigned"} • ${item.status || "Planned"} • ${item.category || "Uncategorised"} • ${item.priority || "Tier 1"}`).length,
+          hover = Math.min(620, Math.max(280, Math.max(titleLen, metaLen) * 8 + 120)),
+          naturalWidth = visibleLength * DAY_WIDTH,
+          needsExpand = naturalWidth < hover;
+        return `<div class="task ${isShort ? "short-activity" : ""} ${needsExpand ? "expandable" : ""} ${item.id === selectedId ? "selected" : ""}" data-task-id="${item.id}" data-label="${esc(item.title || "Untitled activity")}" style="left:${left}%;width:${width}%;top:${top}px;--task-colour:${colour};--hover-width:${hover}px;background:${bg};color:${text}"><div class="resize-handle resize-left" data-resize="left" data-task-id="${item.id}"></div><div class="resize-handle resize-right" data-resize="right" data-task-id="${item.id}"></div><div class="task-content"><div class="task-title">${esc(item.title || "Untitled activity")}</div><div class="task-meta">${esc(item.owner || "Unassigned")} • ${esc(item.status || "Planned")} • ${categoryIcon(item.category)} ${esc(item.category || "Uncategorised")} • ${esc(item.priority || "Tier 1")}</div></div><span class="status-icon">${statusIcon(item.status)}</span></div>`;
       }
       function renderAttachments(a) {
         const files = a.attachments || [];
