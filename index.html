@@ -1413,7 +1413,8 @@
       function deleteSelectedActivity() {
         snapshot();
         campaigns = campaigns.filter((i) => i.id !== selectedId);
-        selectedId = campaigns[0]?.id;
+        selectedId = null;
+        drawerOpen = false;
         saveAll();
         render();
       }
