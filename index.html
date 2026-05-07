@@ -680,38 +680,34 @@
         </section>
       </main>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+      // ── Supabase config ──────────────────────────────────────────────────────
+      const SUPABASE_URL = "https://zrbtnqgwsayrmptpqsbk.supabase.co";
+      const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyYnRucWd3c2F5cm1wdHBxc2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDQ5NzcsImV4cCI6MjA5MzcyMDk3N30.WmgyG1TSFsnalhyP-Vp_2TMIqv1PeC1ixogUd-WyS1A";
+      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+      // ── Constants ────────────────────────────────────────────────────────────
       const DAY_MS = 86400000,
         VIEW_DAYS = 180,
         DAY_WIDTH = 62;
       const CHANNEL_COLOURS = [
-        "#7c3aed",
-        "#0ea5e9",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#ec4899",
-        "#6366f1",
-        "#14b8a6",
-        "#84cc16",
-        "#6b7280",
+        "#7c3aed","#0ea5e9","#10b981","#f59e0b","#ef4444",
+        "#ec4899","#6366f1","#14b8a6","#84cc16","#6b7280",
       ];
       const ACTIVITY_CATEGORIES = [
-        "Uncategorised",
-        "Stamps",
-        "Coins",
-        "Bullion",
-        "Militaria",
-        "Trading Cards",
-        "Comics",
+        "Uncategorised","Stamps","Coins","Bullion",
+        "Militaria","Trading Cards","Comics",
       ];
       const ACTIVITY_TIERS = ["Tier 1", "Tier 2", "Tier 3"];
       const STATUS_OPTIONS = ["Planned", "In progress", "Blocked", "Done"];
+
+      // ── App state ────────────────────────────────────────────────────────────
       let viewStart = addDays(startOfWeek(new Date()), -30),
         filter = "all",
         categoryFilter = "all",
         tierFilter = "all",
-        selectedId = 1,
+        selectedId = null,
         drawerOpen = false,
         dragState = null,
         draftActivity = null,
@@ -722,55 +718,163 @@
         scrollExtendLock = false,
         suppressLaneCreate = false,
         scrollInitialised = false,
-        undoStack = [];
-      let channels = load("marketingPlannerChannels", [
+        undoStack = [],
+        isSaving = false;
+
+      let channels = [
         { id: "channel1", name: "SEO", color: "#7c3aed" },
         { id: "channel2", name: "PR", color: "#0ea5e9" },
         { id: "channel3", name: "Events", color: "#10b981" },
-      ]);
-      let owners = load("marketingPlannerOwners", [
-        "Pierre",
-        "Maya",
-        "Alex",
-        "Sam",
-      ]);
-      let campaigns = ensureUniqueActivityIds(
-        load("marketingPlannerCampaigns", [
-          {
-            id: 1,
-            title: "Example campaign",
-            channel: channels[0].id,
-            owner: owners[0] || "Pierre",
-            status: "Planned",
-            priority: "Tier 1",
-            category: "Uncategorised",
-            start: fmt(addDays(new Date(), 1)),
-            end: fmt(addDays(new Date(), 8)),
-            notes: "Drag this block to a different date or channel.",
-            attachments: [],
-          },
-          {
-            id: 2,
-            title: "Example content sprint",
-            channel: channels[1]?.id || channels[0].id,
-            owner: owners[1] || owners[0],
-            status: "In progress",
-            priority: "Tier 2",
-            category: "Coins",
-            start: fmt(addDays(new Date(), 5)),
-            end: fmt(addDays(new Date(), 18)),
-            notes: "Add your own channels, team members and activities.",
-            attachments: [],
-          },
-        ]),
-      );
-      function load(k, f) {
+      ];
+      let owners = ["Pierre", "Maya", "Alex", "Sam"];
+      let campaigns = [];
+
+      // ── Supabase helpers ─────────────────────────────────────────────────────
+
+      function showStatus(msg, isError = false) {
+        let el = document.getElementById("sync-status");
+        if (!el) {
+          el = document.createElement("div");
+          el.id = "sync-status";
+          el.style.cssText =
+            "position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#172033;color:#fff;padding:8px 18px;border-radius:99px;font-size:13px;font-weight:700;z-index:9999;transition:opacity 0.4s ease;pointer-events:none";
+          document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.style.background = isError ? "#be123c" : "#172033";
+        el.style.opacity = "1";
+        clearTimeout(el._t);
+        el._t = setTimeout(() => (el.style.opacity = "0"), 2200);
+      }
+
+      async function loadFromSupabase() {
+        showStatus("Loading…");
         try {
-          return JSON.parse(localStorage.getItem(k)) || f;
-        } catch {
-          return f;
+          const [{ data: chRows }, { data: owRows }, { data: camRows }] =
+            await Promise.all([
+              sb.from("channels").select("*").order("id"),
+              sb.from("owners").select("*").order("idx"),
+              sb.from("campaigns").select("*"),
+            ]);
+
+          if (chRows && chRows.length) channels = chRows.map((r) => r.data);
+          if (owRows && owRows.length) owners = owRows.map((r) => r.name);
+          if (camRows && camRows.length)
+            campaigns = ensureUniqueActivityIds(camRows.map((r) => r.data));
+
+          // Seed defaults if DB is empty
+          if (!chRows || !chRows.length) await saveChannels();
+          if (!owRows || !owRows.length) await saveOwners();
+          if (!camRows || !camRows.length) {
+            campaigns = ensureUniqueActivityIds([
+              {
+                id: 1,
+                title: "Example campaign",
+                channel: channels[0].id,
+                owner: owners[0] || "Pierre",
+                status: "Planned",
+                priority: "Tier 1",
+                category: "Uncategorised",
+                start: fmt(addDays(new Date(), 1)),
+                end: fmt(addDays(new Date(), 8)),
+                notes: "Drag this block to a different date or channel.",
+                attachments: [],
+              },
+              {
+                id: 2,
+                title: "Example content sprint",
+                channel: channels[1]?.id || channels[0].id,
+                owner: owners[1] || owners[0],
+                status: "In progress",
+                priority: "Tier 2",
+                category: "Coins",
+                start: fmt(addDays(new Date(), 5)),
+                end: fmt(addDays(new Date(), 18)),
+                notes: "Add your own channels, team members and activities.",
+                attachments: [],
+              },
+            ]);
+            await saveCampaigns();
+          }
+          showStatus("Loaded ✓");
+        } catch (err) {
+          showStatus("Load failed — check console", true);
+          console.error(err);
+        }
+        render();
+        subscribeToChanges();
+      }
+
+      async function saveChannels() {
+        const rows = channels.map((ch, i) => ({ id: ch.id, data: ch }));
+        await sb.from("channels").upsert(rows, { onConflict: "id" });
+        // Remove deleted channels
+        const ids = channels.map((c) => c.id);
+        await sb.from("channels").delete().not("id", "in", `(${ids.map((i) => `"${i}"`).join(",")})`);
+      }
+
+      async function saveOwners() {
+        const rows = owners.map((name, idx) => ({ idx, name }));
+        await sb.from("owners").upsert(rows, { onConflict: "idx" });
+        if (owners.length > 0) {
+          await sb.from("owners").delete().gte("idx", owners.length);
         }
       }
+
+      async function saveCampaigns() {
+        campaigns = ensureUniqueActivityIds(campaigns);
+        const rows = campaigns.map((c) => ({ id: c.id, data: c }));
+        if (rows.length) {
+          await sb.from("campaigns").upsert(rows, { onConflict: "id" });
+        }
+        // Remove deleted campaigns
+        const ids = campaigns.map((c) => c.id);
+        if (ids.length) {
+          await sb
+            .from("campaigns")
+            .delete()
+            .not("id", "in", `(${ids.join(",")})`);
+        } else {
+          await sb.from("campaigns").delete().neq("id", 0);
+        }
+      }
+
+      async function saveAll() {
+        if (isSaving) return;
+        isSaving = true;
+        showStatus("Saving…");
+        try {
+          await Promise.all([saveChannels(), saveOwners(), saveCampaigns()]);
+          showStatus("Saved ✓");
+        } catch (err) {
+          showStatus("Save failed — check console", true);
+          console.error(err);
+        }
+        isSaving = false;
+      }
+
+      function subscribeToChanges() {
+        sb.channel("realtime-changes")
+          .on("postgres_changes", { event: "*", schema: "public", table: "campaigns" }, async () => {
+            const { data } = await sb.from("campaigns").select("*");
+            if (data) campaigns = ensureUniqueActivityIds(data.map((r) => r.data));
+            render();
+          })
+          .on("postgres_changes", { event: "*", schema: "public", table: "channels" }, async () => {
+            const { data } = await sb.from("channels").select("*").order("id");
+            if (data && data.length) channels = data.map((r) => r.data);
+            render();
+          })
+          .on("postgres_changes", { event: "*", schema: "public", table: "owners" }, async () => {
+            const { data } = await sb.from("owners").select("*").order("idx");
+            if (data && data.length) owners = data.map((r) => r.name);
+            render();
+          })
+          .subscribe();
+      }
+
+      // ── Local helpers ────────────────────────────────────────────────────────
+
       function ensureUniqueActivityIds(items) {
         const seen = new Set();
         return (items || []).map((item, i) => {
@@ -782,25 +886,15 @@
           return { ...item, id };
         });
       }
+
       function snapshot() {
         undoStack.push(
           JSON.stringify({ channels, owners, campaigns, filter, selectedId }),
         );
         if (undoStack.length > 30) undoStack.shift();
       }
-      function saveAll() {
-        campaigns = ensureUniqueActivityIds(campaigns);
-        localStorage.setItem(
-          "marketingPlannerChannels",
-          JSON.stringify(channels),
-        );
-        localStorage.setItem("marketingPlannerOwners", JSON.stringify(owners));
-        localStorage.setItem(
-          "marketingPlannerCampaigns",
-          JSON.stringify(campaigns),
-        );
-      }
-      function undoLast() {
+
+      async function undoLast() {
         const last = undoStack.pop();
         if (!last) {
           alert("Nothing to undo yet.");
@@ -813,7 +907,7 @@
         filter = s.filter || "all";
         selectedId = s.selectedId;
         draftActivity = null;
-        saveAll();
+        await saveAll();
         render();
       }
       function esc(v) {
@@ -1643,7 +1737,7 @@
         tierFilter = e.target.value;
         render();
       });
-      document.getElementById("undoButton").addEventListener("click", undoLast);
+      document.getElementById("undoButton").addEventListener("click", () => undoLast());
       document.getElementById("prev").addEventListener("click", () => {
         viewStart = addDays(viewStart, -7);
         scrollInitialised = false;
@@ -1667,7 +1761,8 @@
         e.preventDefault();
         addActivity();
       });
-      render();
+      // Boot — load from Supabase instead of localStorage
+      loadFromSupabase();
     </script>
   </body>
 </html>
