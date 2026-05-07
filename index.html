@@ -1344,7 +1344,7 @@
       function addActivity(startDate = null, channelId = null) {
         const activeChannel =
             channelId || (filter === "all" ? channels[0].id : filter),
-          startObj = startDate ? new Date(startDate) : addDays(viewStart, 35);
+          startObj = startDate ? new Date(startDate) : new Date();
         draftActivity = {
           id: Date.now(),
           title: "",
