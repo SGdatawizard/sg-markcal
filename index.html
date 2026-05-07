@@ -757,7 +757,7 @@
               sb.from("campaigns").select("*"),
             ]);
 
-          if (chRows && chRows.length) channels = chRows.map((r) => r.data);
+          if (chRows && chRows.length) channels = chRows.map((r) => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
           if (owRows && owRows.length) owners = owRows.map((r) => r.name);
           if (camRows && camRows.length)
             campaigns = ensureUniqueActivityIds(camRows.map((r) => r.data));
@@ -806,7 +806,8 @@
       }
 
       async function saveChannels() {
-        const rows = channels.map((ch, i) => ({ id: ch.id, data: ch }));
+        // Embed the current array position in the data so order survives a DB round-trip
+        const rows = channels.map((ch, i) => ({ id: ch.id, data: { ...ch, sort_order: i } }));
         await sb.from("channels").upsert(rows, { onConflict: "id" });
         // Remove deleted channels
         const ids = channels.map((c) => c.id);
@@ -861,8 +862,10 @@
             render();
           })
           .on("postgres_changes", { event: "*", schema: "public", table: "channels" }, async () => {
-            const { data } = await sb.from("channels").select("*").order("id");
-            if (data && data.length) channels = data.map((r) => r.data);
+            const { data } = await sb.from("channels").select("*");
+            if (data && data.length) {
+              channels = data.map((r) => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            }
             render();
           })
           .on("postgres_changes", { event: "*", schema: "public", table: "owners" }, async () => {
