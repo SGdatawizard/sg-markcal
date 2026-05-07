@@ -1702,21 +1702,20 @@
       });
       document.addEventListener("input", (e) => {
         const edit = e.target.closest("[data-edit]");
-        if (edit) {
-          const field = edit.dataset.edit,
-            liveOnly = ["title", "notes", "start", "end"].includes(field);
+        if (edit && edit.tagName !== "SELECT") {
+          const field = edit.dataset.edit;
           if (field === "title") return; // handled by Save title button
           if (field === "start" || field === "end") return; // handled by Save dates button
-          updateSelected(field, edit.value, !liveOnly);
+          updateSelected(field, edit.value, false); // notes — debounced, no re-render mid-type
         }
         const draft = e.target.closest("[data-draft]");
-        if (draft) updateDraftActivity(draft.dataset.draft, draft.value);
+        if (draft && draft.tagName !== "SELECT") updateDraftActivity(draft.dataset.draft, draft.value);
       });
       document.addEventListener(
         "blur",
         (e) => {
           const edit = e.target.closest("[data-edit]");
-          if (edit && ["notes"].includes(edit.dataset.edit)) {
+          if (edit && edit.dataset.edit === "notes") {
             clearTimeout(saveDebounceTimer);
             saveAll();
             render();
@@ -1725,7 +1724,14 @@
         true,
       );
       document.addEventListener("change", (e) => {
-        if (e.target.id === "activityFiles") addAttachments(e.target.files);
+        if (e.target.id === "activityFiles") { addAttachments(e.target.files); return; }
+        const edit = e.target.closest("[data-edit]");
+        if (edit && edit.tagName === "SELECT") {
+          updateSelected(edit.dataset.edit, edit.value, true);
+          return;
+        }
+        const draft = e.target.closest("[data-draft]");
+        if (draft && draft.tagName === "SELECT") updateDraftActivity(draft.dataset.draft, draft.value);
       });
       document.addEventListener("mousedown", (e) => {
         const handle = e.target.closest(".resize-handle");
