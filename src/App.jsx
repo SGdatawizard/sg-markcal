@@ -42,7 +42,7 @@ export default function App() {
   const [drawerOpen,    setDrawerOpen]    = useState(false)
   const [draftActivity, setDraftActivity] = useState(null)
 
-  const [syncMsg,   setSyncMsg]   = useState('')
+  const [scrollToToday, setScrollToToday] = useState(0)
   const [syncError, setSyncError] = useState(false)
   const syncTimer = useRef(null)
   const isSaving  = useRef(false)
@@ -250,7 +250,7 @@ export default function App() {
           drawerOpen={drawerOpen} onToggleDrawer={() => setDrawerOpen(v => !v)}
           onUndo={undoLast} onPrev={() => setViewStart(d => addDays(d, -7))}
           onNext={() => setViewStart(d => addDays(d, 7))}
-          onToday={() => setViewStart(addDays(startOfWeek(new Date()), -30))}
+          onToday={() => { setViewStart(addDays(startOfWeek(new Date()), -30)); setScrollToToday(n => n + 1) }}
           onAddActivity={() => addActivityAtDate()}
         />
         <div style={{ flex:1, minHeight:0, display:'flex', overflow:'hidden' }}>
@@ -263,6 +263,7 @@ export default function App() {
             onAddAtDate={addActivityAtDate}
             onMoveCampaign={moveCampaign}
             onUpdateCampaign={updateCampaign}
+            scrollToToday={scrollToToday}
           />
           {drawerOpen && selectedCampaign && (
             <ActivityDrawer
