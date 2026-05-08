@@ -4,7 +4,7 @@ import {
   pointerWithin, useDraggable, useDroppable,
 } from '@dnd-kit/core'
 import { DAY_WIDTH, LABEL_WIDTH, VIEW_DAYS, CATEGORY_ICONS, STATUS_ICONS } from '../constants'
-import { addDays, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
+import { addDays, fmtDate, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
 
 function layoutItems(items) {
   const lanes = []
@@ -166,13 +166,25 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const scrollInit = useRef(false)
   const [activeItem,    setActiveItem]    = useState(null)
   const [overChannelId, setOverChannelId] = useState(null)
+  const [dragDelta,     setDragDelta]     = useState(null) // { id, dx, channelId }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
-  const visible    = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
-  const days       = Array.from({ length: VIEW_DAYS }, (_, i) => addDays(viewStart, i))
+  // Apply in-progress drag position optimistically so there's no snap-back on drop
+  const displayCampaigns = dragDelta
+    ? campaigns.map(c => {
+        if (c.id !== dragDelta.id) return c
+        const dur      = daysBetween(c.start, c.end)
+        const newStart = addDays(parseDate(c.start), dragDelta.dx)
+        const newEnd   = addDays(newStart, dur - 1)
+        return { ...c, start: fmtDate(newStart), end: fmtDate(newEnd), channel: dragDelta.channelId }
+      })
+    : campaigns
+
+  const visible = getVisible(displayCampaigns, channelFilter, categoryFilter, tierFilter, search)
+  const days    = Array.from({ length: VIEW_DAYS }, (_, i) => addDays(viewStart, i))
   const totalWidth = LABEL_WIDTH + VIEW_DAYS * DAY_WIDTH
 
   // Initial scroll to show today near left
@@ -218,25 +230,38 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   function handleDragStart({ active }) {
     setActiveItem(active.data.current.item)
     setOverChannelId(active.data.current.item.channel)
+    setDragDelta({ id: active.data.current.item.id, dx: 0, channelId: active.data.current.item.channel })
+  }
+
+  function handleDragMove({ delta, over }) {
+    const channelId = over?.data?.current?.channelId
+    setDragDelta(d => d ? {
+      ...d,
+      dx: Math.round(delta.x / DAY_WIDTH),
+      ...(channelId ? { channelId } : {}),
+    } : d)
+    if (channelId) setOverChannelId(channelId)
   }
 
   function handleDragOver({ over }) {
-    // pointerWithin gives us the lane the cursor is physically over
     const channelId = over?.data?.current?.channelId
-    if (channelId) setOverChannelId(channelId)
+    if (channelId) {
+      setOverChannelId(channelId)
+      setDragDelta(d => d ? { ...d, channelId } : d)
+    }
   }
 
   function handleDragEnd({ active, delta, over }) {
     setActiveItem(null)
-    if (!active) return
-    const item = active.data.current.item
-    // Channel = wherever cursor was last over (tracked via handleDragOver)
-    const newChannel = over?.data?.current?.channelId || overChannelId || item.channel
     setOverChannelId(null)
-    const dayDelta = Math.round(delta.x / DAY_WIDTH)
-    const dur      = daysBetween(item.start, item.end)
-    const newStart = addDays(parseDate(item.start), dayDelta)
-    const newEnd   = addDays(newStart, dur - 1)
+    setDragDelta(null)
+    if (!active) return
+    const item       = active.data.current.item
+    const newChannel = over?.data?.current?.channelId || overChannelId || item.channel
+    const dayDelta   = Math.round(delta.x / DAY_WIDTH)
+    const dur        = daysBetween(item.start, item.end)
+    const newStart   = addDays(parseDate(item.start), dayDelta)
+    const newEnd     = addDays(newStart, dur - 1)
     onMoveCampaign(item.id, newStart, newEnd, newChannel)
   }
 
@@ -250,7 +275,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const filteredChannels = channels.filter(ch => channelFilter === 'all' || ch.id === channelFilter)
 
   return (
-    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <style>{HOVER_STYLES}</style>
       <div ref={wrapRef} style={{ flex:1, minWidth:0, overflowX:'auto', overflowY:'auto', paddingRight:24, paddingBottom:24, position:'relative' }}>
         <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth }}>
