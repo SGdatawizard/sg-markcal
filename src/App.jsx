@@ -43,6 +43,7 @@ export default function App() {
   const [draftActivity, setDraftActivity] = useState(null)
 
   const [scrollToToday, setScrollToToday] = useState(0)
+  const [syncMsg,   setSyncMsg]   = useState('')
   const [syncError, setSyncError] = useState(false)
   const syncTimer = useRef(null)
   const isSaving  = useRef(false)
