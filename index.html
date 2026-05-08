@@ -455,12 +455,13 @@
         min-width: var(--hover-width, 320px);
       }
       .task.is-dragging {
-        opacity: 0.9;
-        cursor: grabbing;
-        z-index: 999;
-        transition: none !important;
-        pointer-events: none;
-        box-shadow: 0 18px 42px rgba(20, 24, 38, 0.22);
+        opacity: 0.2;
+      }
+      .lane-grid.drag-over {
+        background-color: rgba(124, 58, 237, 0.06);
+        outline: 2px dashed rgba(124, 58, 237, 0.35);
+        outline-offset: -2px;
+        border-radius: 4px;
       }
       .task.selected {
         outline: 4px solid #e8ebf5;
@@ -1479,6 +1480,49 @@
         saveAll();
         render();
       }
+      // ── Drag ghost ───────────────────────────────────────────────────────────
+      let dragGhost = null;
+
+      function createDragGhost(item, colour) {
+        const g = document.createElement("div");
+        g.id = "drag-ghost";
+        g.style.cssText = [
+          "position:fixed", "pointer-events:none", "z-index:9999",
+          "height:62px", "min-width:180px", "max-width:340px",
+          `background:#fff`, `border:2px solid ${colour}`, "border-radius:12px",
+          "padding:10px 18px 10px 26px", "box-shadow:0 18px 42px rgba(20,24,38,0.22)",
+          "display:flex", "flex-direction:column", "justify-content:center",
+          "opacity:0.95", "transition:none", "overflow:hidden",
+        ].join(";");
+        g.innerHTML = `
+          <div style="position:absolute;left:0;top:0;width:6px;height:100%;background:${colour};border-radius:10px 0 0 10px"></div>
+          <div style="font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#172033">${esc(item.title || "Untitled activity")}</div>
+          <div style="font-size:11px;color:#70798b;margin-top:3px">${esc(item.owner || "")} • ${esc(item.status || "Planned")}</div>
+        `;
+        document.body.appendChild(g);
+        return g;
+      }
+
+      function positionGhost(x, y) {
+        if (!dragGhost) return;
+        dragGhost.style.left = (x + 16) + "px";
+        dragGhost.style.top = (y - 31) + "px";
+      }
+
+      function removeDragGhost() {
+        dragGhost?.remove();
+        dragGhost = null;
+        document.querySelectorAll(".lane-grid.drag-over").forEach(l => l.classList.remove("drag-over"));
+      }
+
+      function laneUnderCursor(x, y) {
+        // Hide ghost so elementFromPoint hits the content underneath
+        if (dragGhost) dragGhost.style.visibility = "hidden";
+        const el = document.elementFromPoint(x, y);
+        if (dragGhost) dragGhost.style.visibility = "";
+        return el?.closest(".lane-grid") ?? null;
+      }
+
       function beginMove(e, el) {
         const id = Number(el.dataset.taskId),
           item = campaigns.find((t) => t.id === id);
@@ -1494,18 +1538,19 @@
           startY: e.clientY,
           lastX: e.clientX,
           lastY: e.clientY,
-          raf: null,
-          dx: 0,
-          dy: 0,
           originalStart: date(item.start),
           originalEnd: date(item.end),
           originalChannel: item.channel,
+          currentChannel: item.channel,
           hasMoved: false,
+          item,
+          colour: getChannel(item.channel).color,
         };
         document.body.style.userSelect = "none";
         window.addEventListener("mousemove", onPointerMove);
         window.addEventListener("mouseup", endPointerAction);
       }
+
       function beginResize(e, handle) {
         const id = Number(handle.dataset.taskId),
           item = campaigns.find((t) => t.id === id);
@@ -1523,108 +1568,95 @@
         window.addEventListener("mousemove", onPointerMove);
         window.addEventListener("mouseup", endPointerAction);
       }
+
       function onPointerMove(e) {
         if (!dragState) return;
-        const dx = e.clientX - dragState.startX,
-          deltaDays = Math.round(dx / DAY_WIDTH);
-        if (Math.abs(dx) > 6 || Math.abs(e.clientY - dragState.startY) > 6)
+        const dx = e.clientX - dragState.startX;
+        if (Math.abs(dx) > 5 || Math.abs(e.clientY - dragState.startY) > 5)
           dragState.hasMoved = true;
+
         if (dragState.mode === "move") {
-          dragState.dx = dx;
-          dragState.dy = e.clientY - dragState.startY;
           dragState.lastX = e.clientX;
           dragState.lastY = e.clientY;
-          if (
-            dragState.hasMoved &&
-            dragState.el &&
-            !dragState.el.classList.contains("is-dragging")
-          ) {
-            dragState.el.classList.add("is-dragging");
-            dragState.el.style.willChange = "transform";
+
+          // First movement: fade original, create ghost
+          if (dragState.hasMoved && !dragGhost) {
+            dragState.el.style.opacity = "0.2";
+            dragGhost = createDragGhost(dragState.item, dragState.colour);
           }
-          if (!dragState.raf) {
-            dragState.raf = requestAnimationFrame(() => {
-              if (dragState && dragState.el && dragState.hasMoved) {
-                dragState.el.style.transform = `translate3d(${dragState.dx}px,${dragState.dy}px,0)`;
-              }
-              if (dragState) dragState.raf = null;
-            });
+          if (dragGhost) positionGhost(e.clientX, e.clientY);
+
+          // Highlight target lane
+          const lane = laneUnderCursor(e.clientX, e.clientY);
+          document.querySelectorAll(".lane-grid.drag-over").forEach(l => {
+            if (l !== lane) l.classList.remove("drag-over");
+          });
+          if (lane) {
+            lane.classList.add("drag-over");
+            dragState.currentChannel = lane.dataset.laneChannel;
+          } else {
+            dragState.currentChannel = dragState.originalChannel;
           }
           return;
         }
-        if (!dragState.snapshotted) {
-          snapshot();
-          dragState.snapshotted = true;
-        }
+
+        // Resize mode — live preview
+        const deltaDays = Math.round(dx / DAY_WIDTH);
+        if (!dragState.snapshotted) { snapshot(); dragState.snapshotted = true; }
         campaigns = campaigns.map((i) => {
           if (i.id !== dragState.id) return i;
           if (dragState.side === "left") {
             const ns = addDays(dragState.originalStart, deltaDays);
-            return ns > dragState.originalEnd ? i : { ...i, start: fmt(ns) };
+            return ns >= dragState.originalEnd ? i : { ...i, start: fmt(ns) };
           }
           const ne = addDays(dragState.originalEnd, deltaDays);
-          return ne < dragState.originalStart ? i : { ...i, end: fmt(ne) };
+          return ne <= dragState.originalStart ? i : { ...i, end: fmt(ne) };
         });
-        saveAll();
-        render();
+        renderTimeline();
       }
+
       function endPointerAction(e) {
         document.body.style.userSelect = "";
-        const wasClick =
-            dragState && dragState.mode === "move" && !dragState.hasMoved,
-          moved = dragState && dragState.hasMoved;
+        window.removeEventListener("mousemove", onPointerMove);
+        window.removeEventListener("mouseup", endPointerAction);
+
+        const wasClick = dragState && dragState.mode === "move" && !dragState.hasMoved;
+        const moved = dragState && dragState.hasMoved;
+
         if (wasClick) {
           const id = dragState.id;
-          if (dragState.el) {
-            dragState.el.classList.remove("is-dragging");
-            dragState.el.style.transform = "";
-            dragState.el.style.willChange = "auto";
-          }
+          removeDragGhost();
+          dragState.el.style.opacity = "";
           dragState = null;
-          window.removeEventListener("mousemove", onPointerMove);
-          window.removeEventListener("mouseup", endPointerAction);
           suppressLaneCreate = false;
           selectTask(id);
           return;
         }
-        if (dragState && dragState.mode === "move") {
-          const endX = e?.clientX ?? dragState.lastX,
-            endY = e?.clientY ?? dragState.lastY,
-            deltaDays = Math.round((endX - dragState.startX) / DAY_WIDTH),
-            lane = document.elementFromPoint(endX, endY)?.closest(".lane-grid"),
+
+        if (dragState?.mode === "move" && moved) {
+          const deltaDays = Math.round((dragState.lastX - dragState.startX) / DAY_WIDTH),
+            lane = laneUnderCursor(dragState.lastX, dragState.lastY),
             target = lane?.dataset.laneChannel || dragState.originalChannel,
-            dur =
-              Math.round(
-                (dragState.originalEnd - dragState.originalStart) / DAY_MS,
-              ) + 1,
+            dur = Math.round((dragState.originalEnd - dragState.originalStart) / DAY_MS) + 1,
             ns = addDays(dragState.originalStart, deltaDays);
           snapshot();
           campaigns = campaigns.map((i) =>
             i.id === dragState.id
-              ? {
-                  ...i,
-                  channel: target,
-                  start: fmt(ns),
-                  end: fmt(addDays(ns, dur - 1)),
-                }
+              ? { ...i, channel: target, start: fmt(ns), end: fmt(addDays(ns, dur - 1)) }
               : i,
           );
-          if (dragState.el) {
-            dragState.el.classList.remove("is-dragging");
-            dragState.el.style.transform = "";
-            dragState.el.style.willChange = "auto";
-          }
+          removeDragGhost();
+          dragState.el.style.opacity = "";
+          dragState = null;
           saveAll();
+        } else if (dragState?.mode === "resize") {
+          dragState = null;
+          saveAll();
+        } else {
+          dragState = null;
         }
-        dragState = null;
-        window.removeEventListener("mousemove", onPointerMove);
-        window.removeEventListener("mouseup", endPointerAction);
-        setTimeout(
-          () => {
-            suppressLaneCreate = false;
-          },
-          moved ? 150 : 0,
-        );
+
+        setTimeout(() => { suppressLaneCreate = false; }, moved ? 150 : 0);
         render();
       }
       document.addEventListener("click", (e) => {
