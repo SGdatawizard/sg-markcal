@@ -1,10 +1,10 @@
 import { useRef, useEffect, useState } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  rectIntersection, useDraggable, useDroppable,
+  pointerWithin, useDraggable, useDroppable,
 } from '@dnd-kit/core'
 import { DAY_WIDTH, LABEL_WIDTH, VIEW_DAYS, CATEGORY_ICONS, STATUS_ICONS } from '../constants'
-import { addDays, fmtDate, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
+import { addDays, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
 
 function layoutItems(items) {
   const lanes = []
@@ -112,18 +112,19 @@ function DraggableItem({ item, channels, viewStart, selectedId, onSelect }) {
 }
 
 function LaneDropZone({ channelId, children }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `lane-${channelId}`, data: { channelId } })
-  return <div ref={setNodeRef} style={{ display:'contents' }}>{children(isOver)}</div>
+  const { setNodeRef } = useDroppable({ id: `lane-${channelId}`, data: { channelId } })
+  return <div ref={setNodeRef}>{children}</div>
 }
 
 export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
-  const [activeItem, setActiveItem] = useState(null)
+  const [activeItem,    setActiveItem]    = useState(null)
+  const [overChannelId, setOverChannelId] = useState(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
   const visible  = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
@@ -161,17 +162,26 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
 
   function handleDragStart({ active }) {
     setActiveItem(active.data.current.item)
+    setOverChannelId(active.data.current.item.channel)
+  }
+
+  function handleDragOver({ over }) {
+    // pointerWithin gives us the lane the cursor is physically over
+    const channelId = over?.data?.current?.channelId
+    if (channelId) setOverChannelId(channelId)
   }
 
   function handleDragEnd({ active, delta, over }) {
     setActiveItem(null)
     if (!active) return
-    const item       = active.data.current.item
-    const dayDelta   = Math.round(delta.x / DAY_WIDTH)
-    const newChannel = over?.data?.current?.channelId || item.channel
-    const dur        = daysBetween(item.start, item.end)
-    const newStart   = addDays(parseDate(item.start), dayDelta)
-    const newEnd     = addDays(newStart, dur - 1)
+    const item = active.data.current.item
+    // Channel = wherever cursor was last over (tracked via handleDragOver)
+    const newChannel = over?.data?.current?.channelId || overChannelId || item.channel
+    setOverChannelId(null)
+    const dayDelta = Math.round(delta.x / DAY_WIDTH)
+    const dur      = daysBetween(item.start, item.end)
+    const newStart = addDays(parseDate(item.start), dayDelta)
+    const newEnd   = addDays(newStart, dur - 1)
     onMoveCampaign(item.id, newStart, newEnd, newChannel)
   }
 
@@ -185,7 +195,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const filteredChannels = channels.filter(ch => channelFilter === 'all' || ch.id === channelFilter)
 
   return (
-    <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <div ref={wrapRef} style={{ flex:1, minWidth:0, overflowX:'auto', overflowY:'auto', paddingRight:24, paddingBottom:24, position:'relative' }}>
         <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth }}>
 
@@ -209,30 +219,29 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
             const items     = layoutItems(visible.filter(it => it.channel === ch.id))
             const maxRow    = items.reduce((m, it) => Math.max(m, it.layoutRow || 0), 0)
             const rowHeight = Math.max(110, 28 + (maxRow + 1) * 74)
+            const isOver    = overChannelId === ch.id && !!activeItem
 
             return (
               <LaneDropZone key={ch.id} channelId={ch.id}>
-                {(isOver) => (
-                  <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px 1fr`, minHeight: rowHeight, borderBottom:'1px solid var(--line)' }}>
-                    <div style={{ position:'sticky', left:0, zIndex:50, background:'#fff', borderRight:'1px solid var(--line)', padding:18, fontWeight:900, boxShadow:'1px 0 0 var(--line)', minWidth: LABEL_WIDTH }}>
-                      <span className="dot" style={{ background: ch.color }} /> {ch.name}
-                      <small style={{ display:'block', marginTop:4, color:'#818898', fontWeight:650 }}>{items.length} planned</small>
-                    </div>
-                    <div
-                      style={{ position:'relative', minHeight: rowHeight, backgroundImage:'repeating-linear-gradient(to right,transparent 0,transparent 61px,var(--line) 61px,var(--line) 62px)', backgroundColor: isOver ? `${ch.color}14` : undefined, transition:'background-color 0.15s', cursor:'pointer' }}
-                      onClick={e => handleLaneClick(e, ch.id)}
-                    >
-                      {days.map((day, idx) =>
-                        isToday(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f5f3ff', pointerEvents:'none', zIndex:0 }} />
-                        : isWeekend(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f8fafc', pointerEvents:'none', zIndex:0 }} />
-                        : null
-                      )}
-                      {items.map(item => (
-                        <DraggableItem key={item.id} item={item} channels={channels} viewStart={viewStart} selectedId={selectedId} onSelect={onSelectCampaign} />
-                      ))}
-                    </div>
+                <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px 1fr`, minHeight: rowHeight, borderBottom:'1px solid var(--line)' }}>
+                  <div style={{ position:'sticky', left:0, zIndex:50, background: isOver ? `${ch.color}08` : '#fff', borderRight:'1px solid var(--line)', padding:18, fontWeight:900, boxShadow:'1px 0 0 var(--line)', minWidth: LABEL_WIDTH, transition:'background 0.15s' }}>
+                    <span className="dot" style={{ background: ch.color }} /> {ch.name}
+                    <small style={{ display:'block', marginTop:4, color:'#818898', fontWeight:650 }}>{items.length} planned</small>
                   </div>
-                )}
+                  <div
+                    style={{ position:'relative', minHeight: rowHeight, backgroundImage:'repeating-linear-gradient(to right,transparent 0,transparent 61px,var(--line) 61px,var(--line) 62px)', backgroundColor: isOver ? `${ch.color}18` : undefined, outline: isOver ? `2px dashed ${ch.color}88` : 'none', outlineOffset: -2, transition:'background-color 0.1s', cursor:'pointer' }}
+                    onClick={e => handleLaneClick(e, ch.id)}
+                  >
+                    {days.map((day, idx) =>
+                      isToday(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f5f3ff', pointerEvents:'none', zIndex:0 }} />
+                      : isWeekend(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f8fafc', pointerEvents:'none', zIndex:0 }} />
+                      : null
+                    )}
+                    {items.map(item => (
+                      <DraggableItem key={item.id} item={item} channels={channels} viewStart={viewStart} selectedId={selectedId} onSelect={onSelectCampaign} />
+                    ))}
+                  </div>
+                </div>
               </LaneDropZone>
             )
           })}
