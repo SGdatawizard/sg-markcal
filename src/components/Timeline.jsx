@@ -29,41 +29,75 @@ function getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search
   )
 }
 
+const HOVER_STYLES = `
+  .activity-block {
+    transition: box-shadow 0.2s, width 0.2s ease, transform 0.15s ease;
+  }
+  .activity-block:not(.is-dragging):not(.is-overlay):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(20,24,38,0.18) !important;
+    z-index: 30;
+    min-width: var(--hover-w) !important;
+    width: var(--hover-w) !important;
+    overflow: visible !important;
+  }
+  .activity-block:not(.is-dragging):not(.is-overlay):hover .activity-meta {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+`
+
 function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
   const ch = channels.find(c => c.id === item.channel) || channels[0]
-  const length   = daysBetween(item.start, item.end)
-  const widthPx  = Math.max(DAY_WIDTH, length * DAY_WIDTH)
-  const isDone   = item.status === 'Done'
+  const length    = daysBetween(item.start, item.end)
+  const isDone    = item.status === 'Done'
   const isBlocked = item.status === 'Blocked'
-  const colour   = isDone ? '#cbd5e1' : isBlocked ? '#ef4444' : ch?.color || '#94a3b8'
-  const bg       = isDone ? '#f3f4f6' : isBlocked ? '#fff1f2' : '#fff'
-  const textCol  = isDone ? '#6b7280' : '#172033'
-  const isShort  = length <= 2
+  const colour    = isDone ? '#cbd5e1' : isBlocked ? '#ef4444' : ch?.color || '#94a3b8'
+  const bg        = isDone ? '#f3f4f6' : isBlocked ? '#fff1f2' : '#fff'
+  const textCol   = isDone ? '#6b7280' : '#172033'
+  const isShort   = length <= 2
+
+  const titleLen = String(item.title || 'Untitled activity').length
+  const metaLen  = String(`${item.owner} • ${item.status} • ${item.category} • ${item.priority}`).length
+  const hoverW   = Math.min(620, Math.max(280, Math.max(titleLen, metaLen) * 8 + 120))
+  const widthPx  = Math.max(DAY_WIDTH, length * DAY_WIDTH)
+
+  const classes = [
+    'activity-block',
+    isDragging  ? 'is-dragging'  : '',
+    isOverlay   ? 'is-overlay'   : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <div style={{
-      width: isOverlay ? Math.max(200, widthPx) : '100%',
-      height: 62,
-      background: bg,
-      border: `1px solid ${isDragging ? colour : '#e1e5ef'}`,
-      borderRadius: 12,
-      padding: '10px 36px 10px 22px',
-      boxShadow: isDragging ? 'none' : isOverlay ? '0 18px 42px rgba(20,24,38,0.28)' : '0 8px 24px rgba(20,24,38,0.1)',
-      display: 'flex', alignItems: 'center', overflow: 'hidden',
-      color: textCol,
-      opacity: isDragging ? 0.3 : 1,
-      outline: !isDragging && !isOverlay && selectedId === item.id ? '4px solid #e8ebf5' : 'none',
-      position: 'relative',
-      cursor: isOverlay ? 'grabbing' : 'grab',
-      transition: isDragging || isOverlay ? 'none' : 'box-shadow 0.2s',
-    }}>
+    <div
+      className={classes}
+      style={{
+        width: isOverlay ? Math.max(200, widthPx) : '100%',
+        height: 62,
+        background: bg,
+        border: `1px solid ${isDragging ? colour : '#e1e5ef'}`,
+        borderRadius: 12,
+        padding: '10px 36px 10px 22px',
+        boxShadow: isDragging ? 'none' : isOverlay ? '0 18px 42px rgba(20,24,38,0.28)' : '0 8px 24px rgba(20,24,38,0.1)',
+        display: 'flex', alignItems: 'center', overflow: 'hidden',
+        color: textCol,
+        opacity: isDragging ? 0.3 : 1,
+        outline: !isDragging && !isOverlay && selectedId === item.id ? '4px solid #e8ebf5' : 'none',
+        position: 'relative',
+        cursor: isOverlay ? 'grabbing' : 'grab',
+        background: bg,
+        '--hover-w': hoverW + 'px',
+        zIndex: isDragging ? 0 : 2,
+      }}
+    >
       <div style={{ position:'absolute', left:0, top:0, width:6, height:'100%', background:colour, borderRadius:'12px 0 0 12px', opacity:0.9 }} />
       {!isShort ? (
         <div style={{ position:'relative', zIndex:5, width:'100%', minWidth:0 }}>
           <div style={{ fontWeight:900, lineHeight:1.15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {item.title || 'Untitled activity'}
           </div>
-          <div style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+          <div className="activity-meta" style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {item.owner} • {item.status} • {CATEGORY_ICONS[item.category] || '📦'} {item.category} • {item.priority}
           </div>
         </div>
@@ -196,6 +230,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
 
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <style>{HOVER_STYLES}</style>
       <div ref={wrapRef} style={{ flex:1, minWidth:0, overflowX:'auto', overflowY:'auto', paddingRight:24, paddingBottom:24, position:'relative' }}>
         <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth }}>
 
