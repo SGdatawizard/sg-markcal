@@ -1,0 +1,29 @@
+export const DAY_MS = 86400000
+export const VIEW_DAYS = 180
+export const DAY_WIDTH = 62
+export const LABEL_WIDTH = 220
+
+export const CHANNEL_COLOURS = [
+  '#7c3aed','#0ea5e9','#10b981','#f59e0b','#ef4444',
+  '#ec4899','#6366f1','#14b8a6','#84cc16','#6b7280',
+]
+
+export const ACTIVITY_CATEGORIES = [
+  'Uncategorised','Stamps','Coins','Bullion',
+  'Militaria','Trading Cards','Comics',
+]
+
+export const ACTIVITY_TIERS = ['Tier 1','Tier 2','Tier 3']
+export const STATUS_OPTIONS = ['Planned','In progress','Blocked','Done']
+
+export const CATEGORY_ICONS = {
+  Uncategorised:'📦', Stamps:'📮', Coins:'🪙', Bullion:'🥇',
+  Militaria:'🎖️', 'Trading Cards':'🃏', Comics:'📚',
+}
+
+export const STATUS_ICONS = {
+  Planned:'🗓️', 'In progress':'🚀', Blocked:'🚫', Done:'✅',
+}
+
+export const SUPABASE_URL = 'https://zrbtnqgwsayrmptpqsbk.supabase.co'
+export const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyYnRucWd3c2F5cm1wdHBxc2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDQ5NzcsImV4cCI6MjA5MzcyMDk3N30.WmgyG1TSFsnalhyP-Vp_2TMIqv1PeC1ixogUd-WyS1A'
