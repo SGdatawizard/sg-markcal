@@ -177,26 +177,23 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
-  const viewDaysRef = useRef(VIEW_DAYS)
-  const [viewDays, setViewDaysState] = useState(VIEW_DAYS)
-  function setViewDays(fn) {
-    const next = typeof fn === 'function' ? fn(viewDaysRef.current) : fn
-    viewDaysRef.current = next
-    setViewDaysState(next)
+  const viewDaysRef = useRef(365)
+  const [viewDays, setViewDaysState] = useState(365)
+  function setViewDays(n) {
+    viewDaysRef.current = n
+    setViewDaysState(n)
   }
 
   const visible    = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
   const days       = Array.from({ length: viewDays }, (_, i) => addDays(viewStart, i))
   const totalWidth = LABEL_WIDTH + viewDays * DAY_WIDTH
 
-  // Initial scroll to show today near left
   useEffect(() => {
     if (!wrapRef.current || scrollInit.current) return
     scrollInit.current = true
     requestAnimationFrame(() => { if (wrapRef.current) wrapRef.current.scrollLeft = 30 * DAY_WIDTH })
   }, [])
 
-  // When Today button is clicked, scroll so today is near the left edge
   useEffect(() => {
     if (!scrollToToday || !wrapRef.current) return
     const wrap = wrapRef.current
@@ -208,28 +205,15 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     const wrap = wrapRef.current
     if (!wrap) return
     function onScroll() {
-      if (scrollLock.current) return
-      const edge = DAY_WIDTH * 14
-      const nearRight = wrap.scrollLeft + wrap.clientWidth > wrap.scrollWidth - edge
-      const nearLeft  = wrap.scrollLeft < edge
-      if (!nearRight && !nearLeft) return
-      scrollLock.current = true
-      if (nearRight) {
-        setViewDays(d => d + 60)
-        setTimeout(() => { scrollLock.current = false }, 100)
-      } else {
-        const added = 60
-        setViewStart(d => addDays(d, -added))
-        setViewDays(d => d + added)
-        requestAnimationFrame(() => {
-          wrap.scrollLeft = wrap.scrollLeft + added * DAY_WIDTH
-          setTimeout(() => { scrollLock.current = false }, 100)
-        })
+      const distFromRight = wrap.scrollWidth - wrap.scrollLeft - wrap.clientWidth
+      if (distFromRight < DAY_WIDTH * 30) {
+        // Grow by 180 days at the end — simple append, no scroll jump
+        setViewDays(viewDaysRef.current + 180)
       }
     }
-    wrap.addEventListener('scroll', onScroll)
+    wrap.addEventListener('scroll', onScroll, { passive: true })
     return () => wrap.removeEventListener('scroll', onScroll)
-  }, []) // empty deps — uses refs, no stale closures
+  }, [])
 
   function handleDragStart({ active }) {
     setActiveItem(active.data.current.item)
