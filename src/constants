@@ -1,7 +1,7 @@
 export const DAY_MS = 86400000
 export const VIEW_DAYS = 180
 export const DAY_WIDTH = 62
-export const LABEL_WIDTH = 220
+export const LABEL_WIDTH = 140
 
 export const CHANNEL_COLOURS = [
   '#7c3aed','#0ea5e9','#10b981','#f59e0b','#ef4444',
