@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CHANNEL_COLOURS } from '../constants'
 
-export default function Sidebar({ channels, owners, campaigns, channelFilter, onFilterChange, onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel, onAddOwner, onRenameOwner, onDeleteOwner }) {
+export default function Sidebar({ channels, owners, campaigns, channelFilter, onFilterChange, onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel, onAddOwner, onRenameOwner, onDeleteOwner, isOpen, onClose }) {
   const [newChannelName, setNewChannelName] = useState('')
   const [addChannelOpen, setAddChannelOpen] = useState(false)
   const [editingChannelId, setEditingChannelId] = useState(null)
@@ -26,35 +26,35 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
     setNewOwnerName('')
   }
 
-  return (
-    <aside style={{ width:300, flexShrink:0, background:'#fff', borderRight:'1px solid var(--line)', padding:22, overflowY:'auto' }}>
+  const content = (
+    <div style={{ padding:22, overflowY:'auto', height:'100%' }}>
       {/* Logo */}
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
-        <div style={{ width:42, height:42, borderRadius:14, background:'var(--dark)', color:'#fff', display:'grid', placeItems:'center', fontWeight:900, fontSize:18 }}>M</div>
+        <div style={{ width:42, height:42, borderRadius:14, background:'var(--dark)', color:'#fff', display:'grid', placeItems:'center', fontWeight:900, fontSize:18, flexShrink:0 }}>M</div>
         <div>
           <p style={{ color:'var(--muted)', fontSize:13, margin:0 }}>Marketing planner</p>
           <h1>Campaign Flow</h1>
         </div>
+        {/* Close button on mobile */}
+        {onClose && (
+          <button onClick={onClose} className="btn-mini" style={{ marginLeft:'auto', flexShrink:0 }}>✕</button>
+        )}
       </div>
 
       {/* Channels */}
       <div style={{ fontSize:12, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', margin:'20px 0 10px' }}>Your channels</div>
-
       <button className="btn btn-secondary" style={{ width:'100%', marginBottom:10 }} onClick={() => setAddChannelOpen(v => !v)}>
         {addChannelOpen ? 'Cancel' : '+ Add channel'}
       </button>
-
       {addChannelOpen && (
         <div style={{ display:'grid', gap:8, marginBottom:10 }}>
           <input placeholder="e.g. SEO, PR, Events" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddChannel()} />
           <button className="btn btn-primary" onClick={handleAddChannel}>Save channel</button>
         </div>
       )}
-
-      <button className={`btn ${channelFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`} style={{ width:'100%', margin:'6px 0 12px' }} onClick={() => onFilterChange('all')}>
+      <button className={`btn ${channelFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`} style={{ width:'100%', margin:'6px 0 12px' }} onClick={() => { onFilterChange('all'); onClose?.() }}>
         Show all channels
       </button>
-
       <div style={{ display:'grid', gap:7 }}>
         {channels.map(ch => (
           <div key={ch.id} style={{ display:'grid', gap:6, padding:8, borderRadius:14, background:'#fafbfe', border:'1px solid #eef1f7' }}>
@@ -68,13 +68,12 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
               </>
             ) : (
               <>
-                <button className={`item-main${channelFilter === ch.id ? ' active' : ''}`} onClick={() => onFilterChange(ch.id)}
-                  style={{ minWidth:0, border:0, background:'transparent', textAlign:'left', padding:10, borderRadius:13, fontWeight:800, display:'flex', alignItems:'center', gap:8, width:'100%' }}>
+                <button onClick={() => { onFilterChange(ch.id); onClose?.() }}
+                  style={{ minWidth:0, border:0, background: channelFilter === ch.id ? 'var(--soft)' : 'transparent', textAlign:'left', padding:10, borderRadius:13, fontWeight:800, display:'flex', alignItems:'center', gap:8, width:'100%', cursor:'pointer' }}>
                   <span className="dot" style={{ background: ch.color }} />
                   <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ch.name}</span>
                 </button>
                 <div style={{ display:'grid', gridTemplateColumns:'34px 36px 36px 44px 64px', gap:6, alignItems:'center' }}>
-                  {/* Colour picker */}
                   <div style={{ position:'relative' }}>
                     <span style={{ width:28, height:28, borderRadius:'50%', border:'2px solid #fff', boxShadow:'0 0 0 1px #d8dce6', display:'block', cursor:'pointer', background: ch.color }}
                       onClick={() => setOpenPaletteId(openPaletteId === ch.id ? null : ch.id)} />
@@ -136,6 +135,27 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
           })}
         </div>
       </div>
-    </aside>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="sidebar-desktop" style={{ width:300, flexShrink:0, background:'#fff', borderRight:'1px solid var(--line)', overflowY:'auto' }}>
+        {content}
+      </aside>
+
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div style={{ position:'fixed', inset:0, zIndex:500 }}>
+          {/* Backdrop */}
+          <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)' }} />
+          {/* Drawer */}
+          <aside style={{ position:'absolute', left:0, top:0, bottom:0, width:300, maxWidth:'90vw', background:'#fff', overflowY:'auto', boxShadow:'4px 0 24px rgba(0,0,0,0.15)' }}>
+            {content}
+          </aside>
+        </div>
+      )}
+    </>
   )
 }
