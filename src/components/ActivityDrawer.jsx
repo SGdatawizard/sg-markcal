@@ -40,7 +40,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
   const update = isDraft ? (f, v) => onUpdateDraft({ [f]: v }) : (f, v) => onUpdate({ [f]: v })
 
   return (
-    <aside style={{ width:390, flexShrink:0, background:'#fff', borderLeft:'1px solid var(--line)', padding:24, overflowY:'auto' }}>
+    <aside className="activity-drawer" style={{ width:390, flexShrink:0, background:'#fff', borderLeft:'1px solid var(--line)', padding:24, overflowY:'auto' }}>
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:12 }}>
         <h3>{isDraft ? 'New activity' : 'Edit activity'}</h3>
