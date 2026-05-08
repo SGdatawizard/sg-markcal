@@ -42,9 +42,10 @@ const HOVER_STYLES = `
     overflow: visible !important;
   }
   .activity-block:not(.is-dragging):not(.is-overlay):hover .activity-meta {
-    white-space: normal !important;
-    overflow: visible !important;
-    text-overflow: unset !important;
+    display: block !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 `
 
@@ -102,8 +103,13 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
           </div>
         </div>
       ) : (
-        <div style={{ fontSize:12, fontWeight:900, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', position:'relative', zIndex:5 }}>
-          {item.title || 'Untitled'}
+        <div style={{ position:'relative', zIndex:5, width:'100%', minWidth:0 }}>
+          <div className="short-title" style={{ fontWeight:900, lineHeight:1.15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {item.title || 'Untitled activity'}
+          </div>
+          <div className="activity-meta short-meta" style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'none' }}>
+            {item.owner} • {item.status} • {CATEGORY_ICONS[item.category] || '📦'} {item.category} • {item.priority}
+          </div>
         </div>
       )}
       <span style={{ position:'absolute', right:10, bottom:8, width:18, height:18, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:12, background:'var(--soft)', zIndex:6 }}>
