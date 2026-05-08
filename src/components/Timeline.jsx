@@ -128,7 +128,7 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
   )
 }
 
-function DraggableItem({ item, channels, viewStart, selectedId, onSelect }) {
+function DraggableItem({ item, channels, viewStart, viewDays, selectedId, onSelect }) {
   const offset  = Math.round((parseDate(item.start) - viewStart) / 86400000)
   const leftPx  = Math.max(0, offset) * DAY_WIDTH
   const top     = 12 + (item.layoutRow || 0) * 68
@@ -177,9 +177,11 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
-  const visible = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
-  const days    = Array.from({ length: VIEW_DAYS }, (_, i) => addDays(viewStart, i))
-  const totalWidth = LABEL_WIDTH + VIEW_DAYS * DAY_WIDTH
+  const [viewDays, setViewDays] = useState(VIEW_DAYS)
+
+  const visible    = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
+  const days       = Array.from({ length: viewDays }, (_, i) => addDays(viewStart, i))
+  const totalWidth = LABEL_WIDTH + viewDays * DAY_WIDTH
 
   // Initial scroll to show today near left
   useEffect(() => {
@@ -193,9 +195,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     if (!scrollToToday || !wrapRef.current) return
     const wrap = wrapRef.current
     const todayOffset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
-    // Put today 2 columns from the left (after the label)
-    const targetScroll = todayOffset * DAY_WIDTH - DAY_WIDTH * 2
-    wrap.scrollLeft = Math.max(0, targetScroll)
+    wrap.scrollLeft = Math.max(0, todayOffset * DAY_WIDTH - DAY_WIDTH * 2)
   }, [scrollToToday])
 
   useEffect(() => {
@@ -203,18 +203,24 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     if (!wrap) return
     function onScroll() {
       if (scrollLock.current) return
-      const edge = DAY_WIDTH * 8
+      const edge = DAY_WIDTH * 14
       const nearRight = wrap.scrollLeft + wrap.clientWidth > wrap.scrollWidth - edge
       const nearLeft  = wrap.scrollLeft < edge
       if (!nearRight && !nearLeft) return
       scrollLock.current = true
-      const old = wrap.scrollLeft
       if (nearRight) {
-        setViewStart(d => addDays(d, 30))
-        requestAnimationFrame(() => { wrap.scrollLeft = Math.max(0, old - 30 * DAY_WIDTH); setTimeout(() => { scrollLock.current = false }, 200) })
+        // Just grow the end — no scroll jump needed
+        setViewDays(d => d + 60)
+        setTimeout(() => { scrollLock.current = false }, 100)
       } else {
-        setViewStart(d => addDays(d, -30))
-        requestAnimationFrame(() => { wrap.scrollLeft = old + 30 * DAY_WIDTH; setTimeout(() => { scrollLock.current = false }, 200) })
+        // Grow the start — shift viewStart back, add days, compensate scroll
+        const added = 60
+        setViewStart(d => addDays(d, -added))
+        setViewDays(d => d + added)
+        requestAnimationFrame(() => {
+          wrap.scrollLeft = wrap.scrollLeft + added * DAY_WIDTH
+          setTimeout(() => { scrollLock.current = false }, 100)
+        })
       }
     }
     wrap.addEventListener('scroll', onScroll)
@@ -260,7 +266,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
         <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth }}>
 
           {/* Header row */}
-          <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px repeat(${VIEW_DAYS}, ${DAY_WIDTH}px)`, background:'#f7f8fb', borderBottom:'1px solid var(--line)', position:'sticky', top:0, zIndex:120 }}>
+          <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px repeat(${viewDays}, ${DAY_WIDTH}px)`, background:'#f7f8fb', borderBottom:'1px solid var(--line)', position:'sticky', top:0, zIndex:120 }}>
             <div style={{ padding:'10px 8px', borderRight:'1px solid var(--line)', fontSize:12, fontWeight:900, color:'#667085', position:'sticky', left:0, zIndex:140, background:'#f7f8fb', boxShadow:'1px 0 0 var(--line)' }}>Channel</div>
             {days.map((day, i) => {
               const today   = isToday(day)
@@ -298,7 +304,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
                       : null
                     )}
                     {items.map(item => (
-                      <DraggableItem key={item.id} item={item} channels={channels} viewStart={viewStart} selectedId={selectedId} onSelect={onSelectCampaign} />
+                      <DraggableItem key={item.id} item={item} channels={channels} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} />
                     ))}
                   </div>
                 </div>
