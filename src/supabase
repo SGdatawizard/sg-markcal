@@ -1,0 +1,57 @@
+import { createClient } from '@supabase/supabase-js'
+import { SUPABASE_URL, SUPABASE_ANON } from './constants'
+
+export const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+
+export async function loadAll() {
+  const [{ data: chRows }, { data: owRows }, { data: camRows }] = await Promise.all([
+    sb.from('channels').select('*'),
+    sb.from('owners').select('*').order('idx'),
+    sb.from('campaigns').select('*'),
+  ])
+  return {
+    channels: chRows?.length
+      ? chRows.map(r => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      : null,
+    owners: owRows?.length ? owRows.map(r => r.name) : null,
+    campaigns: camRows?.length ? camRows.map(r => r.data) : null,
+  }
+}
+
+export async function saveChannels(channels) {
+  const rows = channels.map((ch, i) => ({ id: ch.id, data: { ...ch, sort_order: i } }))
+  await sb.from('channels').upsert(rows, { onConflict: 'id' })
+  const ids = channels.map(c => c.id)
+  if (ids.length) await sb.from('channels').delete().not('id', 'in', `(${ids.map(i => `"${i}"`).join(',')})`)
+}
+
+export async function saveOwners(owners) {
+  const rows = owners.map((name, idx) => ({ idx, name }))
+  await sb.from('owners').upsert(rows, { onConflict: 'idx' })
+  await sb.from('owners').delete().gte('idx', owners.length)
+}
+
+export async function saveCampaigns(campaigns) {
+  const rows = campaigns.map(c => ({ id: c.id, data: c }))
+  if (rows.length) await sb.from('campaigns').upsert(rows, { onConflict: 'id' })
+  const ids = campaigns.map(c => c.id)
+  if (ids.length) await sb.from('campaigns').delete().not('id', 'in', `(${ids.join(',')})`)
+  else await sb.from('campaigns').delete().neq('id', 0)
+}
+
+export function subscribeToChanges(onCampaigns, onChannels, onOwners) {
+  return sb.channel('realtime-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, async () => {
+      const { data } = await sb.from('campaigns').select('*')
+      if (data) onCampaigns(data.map(r => r.data))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, async () => {
+      const { data } = await sb.from('channels').select('*')
+      if (data?.length) onChannels(data.map(r => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'owners' }, async () => {
+      const { data } = await sb.from('owners').select('*').order('idx')
+      if (data?.length) onOwners(data.map(r => r.name))
+    })
+    .subscribe()
+}
