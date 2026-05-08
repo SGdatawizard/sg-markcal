@@ -457,11 +457,11 @@
       .task.is-dragging {
         opacity: 0.2;
       }
+      .snap-ghost {
+        transition: left 0.06s ease, top 0.06s ease;
+      }
       .lane-grid.drag-over {
-        background-color: rgba(124, 58, 237, 0.06);
-        outline: 2px dashed rgba(124, 58, 237, 0.35);
-        outline-offset: -2px;
-        border-radius: 4px;
+        background-color: rgba(124, 58, 237, 0.04);
       }
       .task.selected {
         outline: 4px solid #e8ebf5;
@@ -1475,54 +1475,66 @@
         saveAll();
         render();
       }
-      // ── Drag ghost ───────────────────────────────────────────────────────────
-      let dragGhost = null;
+      // ── Grid-snap drag ───────────────────────────────────────────────────────
+      // Ghost lives inside the lane-grid as a real DOM node, positioned in px.
+      // We never do coordinate math — we just ask "which day column is the
+      // cursor over?" by reading data-day-index attributes stamped on the grid.
 
-      function createDragGhost(item, colour) {
+      let snapGhost = null; // the in-grid preview element
+      let snapState = null; // { id, dur, channelId, dayIndex, colour, title, owner, status }
+
+      function dayIndexFromEvent(e) {
+        // Temporarily disable pointer events on dragged element so elementFromPoint sees the lane
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el) return null;
+        const lane = el.closest(".lane-grid");
+        if (!lane) return null;
+        const wrap = document.querySelector(".timeline-wrap");
+        const laneRect = lane.getBoundingClientRect();
+        // Distance from left edge of lane in screen px, plus the scroll offset
+        const xInLane = (e.clientX - laneRect.left) + (wrap ? wrap.scrollLeft : 0);
+        return Math.max(0, Math.min(VIEW_DAYS - 1, Math.floor(xInLane / DAY_WIDTH)));
+      }
+
+      function channelFromEvent(e) {
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        return el?.closest(".lane-grid")?.dataset.laneChannel ?? null;
+      }
+
+      function renderSnapGhost() {
+        // Remove old ghost
+        document.querySelectorAll(".snap-ghost").forEach(g => g.remove());
+        if (!snapState) return;
+        const { channelId, dayIndex, dur, colour, title, owner, status } = snapState;
+        const lane = document.querySelector(`.lane-grid[data-lane-channel="${channelId}"]`);
+        if (!lane) return;
+        const leftPx = dayIndex * DAY_WIDTH;
+        const widthPx = dur * DAY_WIDTH;
         const g = document.createElement("div");
-        g.id = "drag-ghost";
-        g.style.cssText = [
-          "position:fixed", "pointer-events:none", "z-index:9999",
-          "height:62px", "min-width:180px", "max-width:340px",
-          "background:#fff", `border:2px solid ${colour}`, "border-radius:12px",
-          "padding:10px 18px 10px 26px", "box-shadow:0 18px 42px rgba(20,24,38,0.22)",
-          "display:flex", "flex-direction:column", "justify-content:center",
-          "opacity:0.95", "transition:none", "overflow:hidden",
-        ].join(";");
-        g.innerHTML = `
-          <div style="position:absolute;left:0;top:0;width:6px;height:100%;background:${colour};border-radius:10px 0 0 10px"></div>
-          <div style="font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#172033">${esc(item.title || "Untitled activity")}</div>
-          <div style="font-size:11px;color:#70798b;margin-top:3px">${esc(item.owner || "")} • ${esc(item.status || "Planned")}</div>
+        g.className = "snap-ghost";
+        g.style.cssText = `
+          position:absolute;
+          left:${leftPx}px;
+          top:8px;
+          width:${widthPx}px;
+          height:62px;
+          background:${colour}22;
+          border:2px dashed ${colour};
+          border-radius:12px;
+          z-index:50;
+          pointer-events:none;
+          display:flex;
+          align-items:center;
+          padding:0 0 0 18px;
+          overflow:hidden;
         `;
-        document.body.appendChild(g);
-        return g;
+        g.innerHTML = `<span style="font-weight:900;font-size:12px;color:${colour};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>`;
+        lane.appendChild(g);
       }
 
-      function positionGhost(x, y) {
-        if (!dragGhost) return;
-        dragGhost.style.left = (x + 16) + "px";
-        dragGhost.style.top = (y - 31) + "px";
-      }
-
-      function removeDragGhost() {
-        dragGhost?.remove();
-        dragGhost = null;
-        document.querySelectorAll(".lane-grid.drag-over").forEach(l => l.classList.remove("drag-over"));
-      }
-
-      function laneUnderCursor(x, y) {
-        if (dragGhost) dragGhost.style.visibility = "hidden";
-        const el = document.elementFromPoint(x, y);
-        if (dragGhost) dragGhost.style.visibility = "";
-        return el?.closest(".lane-grid") ?? null;
-      }
-
-      // Convert a screen X coordinate to a day offset within the timeline
-      function screenXToDayOffset(screenX) {
-        const lane = document.querySelector(".lane-grid");
-        if (!lane) return 0;
-        const rect = lane.getBoundingClientRect();
-        return Math.round((screenX - rect.left) / DAY_WIDTH);
+      function clearSnapGhost() {
+        document.querySelectorAll(".snap-ghost").forEach(g => g.remove());
+        snapState = null;
       }
 
       function beginMove(e, el) {
@@ -1532,25 +1544,18 @@
         suppressLaneCreate = true;
         draftActivity = null;
         selectedId = id;
-
-        // Record which day-column the cursor was over when drag started
-        const startDayOffset = screenXToDayOffset(e.clientX);
-
         dragState = {
           mode: "move",
           id,
           el,
           startX: e.clientX,
           startY: e.clientY,
-          lastX: e.clientX,
-          lastY: e.clientY,
-          startDayOffset,
+          hasMoved: false,
           originalStart: date(item.start),
           originalEnd: date(item.end),
           originalChannel: item.channel,
-          hasMoved: false,
+          dur: Math.round((date(item.end) - date(item.start)) / DAY_MS) + 1,
           item,
-          colour: getChannel(item.channel).color,
         };
         document.body.style.userSelect = "none";
         window.addEventListener("mousemove", onPointerMove);
@@ -1566,9 +1571,9 @@
           side: handle.dataset.resize,
           id,
           startX: e.clientX,
-          startY: e.clientY,
           originalStart: date(item.start),
           originalEnd: date(item.end),
+          snapshotted: false,
         };
         document.body.style.userSelect = "none";
         window.addEventListener("mousemove", onPointerMove);
@@ -1578,27 +1583,36 @@
       function onPointerMove(e) {
         if (!dragState) return;
         const dx = e.clientX - dragState.startX;
-        if (Math.abs(dx) > 5 || Math.abs(e.clientY - dragState.startY) > 5)
+        if (Math.abs(dx) > 4 || Math.abs(e.clientY - dragState.startY) > 4)
           dragState.hasMoved = true;
 
         if (dragState.mode === "move") {
-          dragState.lastX = e.clientX;
-          dragState.lastY = e.clientY;
-          if (dragState.hasMoved && !dragGhost) {
-            dragState.el.style.opacity = "0.2";
-            dragGhost = createDragGhost(dragState.item, dragState.colour);
-          }
-          if (dragGhost) positionGhost(e.clientX, e.clientY);
+          if (!dragState.hasMoved) return;
+          // Fade the original block while dragging
+          dragState.el.style.opacity = "0.25";
+          dragState.el.style.pointerEvents = "none";
 
-          const lane = laneUnderCursor(e.clientX, e.clientY);
-          document.querySelectorAll(".lane-grid.drag-over").forEach(l => {
-            if (l !== lane) l.classList.remove("drag-over");
-          });
-          if (lane) lane.classList.add("drag-over");
+          const dayIndex = dayIndexFromEvent(e);
+          const channelId = channelFromEvent(e) || dragState.originalChannel;
+          const colour = getChannel(channelId).color;
+
+          if (dayIndex !== null) {
+            snapState = {
+              id: dragState.id,
+              dur: dragState.dur,
+              channelId,
+              dayIndex,
+              colour,
+              title: dragState.item.title || "Untitled activity",
+              owner: dragState.item.owner,
+              status: dragState.item.status,
+            };
+            renderSnapGhost();
+          }
           return;
         }
 
-        // Resize — live preview, no network calls
+        // Resize — update live, no saves
         const deltaDays = Math.round(dx / DAY_WIDTH);
         if (!dragState.snapshotted) { snapshot(); dragState.snapshotted = true; }
         campaigns = campaigns.map((i) => {
@@ -1610,7 +1624,7 @@
           const ne = addDays(dragState.originalEnd, deltaDays);
           return ne <= dragState.originalStart ? i : { ...i, end: fmt(ne) };
         });
-        renderTimeline(); // lightweight — no Supabase calls during drag
+        renderTimeline();
       }
 
       function endPointerAction(e) {
@@ -1619,45 +1633,48 @@
         window.removeEventListener("mouseup", endPointerAction);
 
         const wasClick = dragState && dragState.mode === "move" && !dragState.hasMoved;
-        const moved = dragState && dragState.hasMoved;
+        const moved = dragState && dragState.mode === "move" && dragState.hasMoved;
 
         if (wasClick) {
           const id = dragState.id;
-          removeDragGhost();
+          clearSnapGhost();
           dragState.el.style.opacity = "";
+          dragState.el.style.pointerEvents = "";
           dragState = null;
           suppressLaneCreate = false;
           selectTask(id);
           return;
         }
 
-        if (dragState?.mode === "move" && moved) {
-          // Use the lane's bounding rect to convert cursor position → day index
-          // This automatically accounts for scroll position
-          const lane = laneUnderCursor(dragState.lastX, dragState.lastY);
-          const targetChannel = lane?.dataset.laneChannel || dragState.originalChannel;
-          const targetLane = lane || document.querySelector(".lane-grid");
-          const rect = targetLane.getBoundingClientRect();
-          const cursorDayIndex = Math.round((dragState.lastX - rect.left) / DAY_WIDTH);
-          // Shift so the day under cursor stays under cursor (not just delta from start)
-          const dayDelta = cursorDayIndex - dragState.startDayOffset;
-          const dur = Math.round((dragState.originalEnd - dragState.originalStart) / DAY_MS) + 1;
-          const ns = addDays(dragState.originalStart, dayDelta);
-
+        if (moved && snapState) {
+          // snapState.dayIndex is the exact grid column — no math needed
+          const newStart = addDays(viewStart, snapState.dayIndex);
+          const newEnd = addDays(newStart, dragState.dur - 1);
           snapshot();
           campaigns = campaigns.map((i) =>
             i.id === dragState.id
-              ? { ...i, channel: targetChannel, start: fmt(ns), end: fmt(addDays(ns, dur - 1)) }
+              ? { ...i, channel: snapState.channelId, start: fmt(newStart), end: fmt(newEnd) }
               : i,
           );
-          removeDragGhost();
+          clearSnapGhost();
           dragState.el.style.opacity = "";
+          dragState.el.style.pointerEvents = "";
           dragState = null;
           saveAll();
+        } else if (moved && !snapState) {
+          // Dropped outside grid — restore
+          clearSnapGhost();
+          dragState.el.style.opacity = "";
+          dragState.el.style.pointerEvents = "";
+          dragState = null;
         } else if (dragState?.mode === "resize") {
           dragState = null;
           saveAll();
         } else {
+          if (dragState?.el) {
+            dragState.el.style.opacity = "";
+            dragState.el.style.pointerEvents = "";
+          }
           dragState = null;
         }
 
