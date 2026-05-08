@@ -1501,7 +1501,8 @@
       }
 
       function beginMove(e, el) {
-        if (pendingMove) return; // don't start a new drag while confirm is showing
+        // If a confirm bar is showing, dismiss it as a cancel before starting new drag
+        if (pendingMove) cancelMove();
         const id = Number(el.dataset.taskId),
           item = campaigns.find((t) => t.id === id);
         if (!item) return;
@@ -1656,14 +1657,19 @@
           }
 
           // Store pending move, show confirm UI on the block
-          pendingMove = { id: dragState.id, newStart, newEnd, newChannel };
+          pendingMove = {
+            id: dragState.id,
+            newStart, newEnd, newChannel,
+            originalStart: fmt(dragState.originalStart),
+            originalEnd: fmt(addDays(dragState.originalStart, dragState.dur - 1)),
+            originalChannel: dragState.originalChannel,
+          };
           dragState.el.style.transform = "";
           dragState.el.style.cursor = "";
           dragState.el.style.boxShadow = "";
           dragState.el.style.opacity = "";
 
           // Move block to correct lane immediately for visual feedback, then show confirm
-          snapshot();
           campaigns = campaigns.map(i =>
             i.id === pendingMove.id
               ? { ...i, channel: newChannel, start: fmt(newStart), end: fmt(newEnd) }
@@ -1708,6 +1714,7 @@
       }
 
       function confirmMove() {
+        snapshot();
         pendingMove = null;
         document.querySelectorAll(".move-confirm-bar").forEach(b => b.remove());
         document.querySelectorAll(".task").forEach(t => { t.style.zIndex = ""; t.style.outline = ""; });
@@ -1717,17 +1724,14 @@
 
       function cancelMove() {
         if (!pendingMove) return;
-        // Undo the optimistic move
-        undoStack.pop(); // remove the snapshot we took
-        const item = campaigns.find(i => i.id === pendingMove.id);
-        // restore from the undo stack's last state
-        const last = undoStack[undoStack.length - 1];
-        if (last) {
-          const prev = JSON.parse(last);
-          campaigns = prev.campaigns;
-        }
+        campaigns = campaigns.map(i =>
+          i.id === pendingMove.id
+            ? { ...i, channel: pendingMove.originalChannel, start: pendingMove.originalStart, end: pendingMove.originalEnd }
+            : i
+        );
         pendingMove = null;
         document.querySelectorAll(".move-confirm-bar").forEach(b => b.remove());
+        document.querySelectorAll(".task").forEach(t => { t.style.zIndex = ""; t.style.outline = ""; });
         render();
       }
       document.addEventListener("click", (e) => {
