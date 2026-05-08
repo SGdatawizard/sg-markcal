@@ -96,3 +96,35 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px #e8ebf5; }
 }
 .sync-status.error { background: #be123c; }
 .sync-status.hidden { opacity: 0; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+/* Desktop: show desktop layouts, hide mobile */
+@media (min-width: 768px) {
+  .topbar-mobile  { display: none !important; }
+  .topbar-desktop { display: flex !important; }
+  .sidebar-desktop { display: block !important; }
+}
+
+/* Mobile: hide desktop layouts, show mobile */
+@media (max-width: 767px) {
+  .topbar-desktop  { display: none !important; }
+  .topbar-mobile   { display: block !important; }
+  .sidebar-desktop { display: none !important; }
+
+  /* Activity drawer goes full-screen on mobile */
+  .activity-drawer {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    z-index: 400 !important;
+    border-left: none !important;
+    overflow-y: auto !important;
+  }
+
+  /* Make timeline touch-friendly */
+  .draggable-item {
+    min-height: 68px !important;
+  }
+}
