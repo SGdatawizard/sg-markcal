@@ -177,7 +177,13 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
-  const [viewDays, setViewDays] = useState(VIEW_DAYS)
+  const viewDaysRef = useRef(VIEW_DAYS)
+  const [viewDays, setViewDaysState] = useState(VIEW_DAYS)
+  function setViewDays(fn) {
+    const next = typeof fn === 'function' ? fn(viewDaysRef.current) : fn
+    viewDaysRef.current = next
+    setViewDaysState(next)
+  }
 
   const visible    = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
   const days       = Array.from({ length: viewDays }, (_, i) => addDays(viewStart, i))
@@ -209,11 +215,9 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
       if (!nearRight && !nearLeft) return
       scrollLock.current = true
       if (nearRight) {
-        // Just grow the end — no scroll jump needed
         setViewDays(d => d + 60)
         setTimeout(() => { scrollLock.current = false }, 100)
       } else {
-        // Grow the start — shift viewStart back, add days, compensate scroll
         const added = 60
         setViewStart(d => addDays(d, -added))
         setViewDays(d => d + added)
@@ -225,7 +229,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     }
     wrap.addEventListener('scroll', onScroll)
     return () => wrap.removeEventListener('scroll', onScroll)
-  }, [setViewStart])
+  }, []) // empty deps — uses refs, no stale closures
 
   function handleDragStart({ active }) {
     setActiveItem(active.data.current.item)
