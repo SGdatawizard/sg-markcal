@@ -43,6 +43,7 @@ export default function App() {
   const [draftActivity, setDraftActivity] = useState(null)
 
   const [scrollToToday, setScrollToToday] = useState(0)
+  const [sidebarOpen,   setSidebarOpen]   = useState(false)
   const [syncMsg,   setSyncMsg]   = useState('')
   const [syncError, setSyncError] = useState(false)
   const syncTimer = useRef(null)
@@ -242,6 +243,7 @@ export default function App() {
         onColorChange={changeChannelColor} onDeleteChannel={deleteChannel}
         onMoveChannel={moveChannel} onAddOwner={addOwner}
         onRenameOwner={renameOwner} onDeleteOwner={deleteOwner}
+        isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
       />
       <div style={{ flex:1, minWidth:0, height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <Topbar
@@ -253,6 +255,7 @@ export default function App() {
           onNext={() => setViewStart(d => addDays(d, 7))}
           onToday={() => { setViewStart(addDays(startOfWeek(new Date()), -30)); setScrollToToday(n => n + 1) }}
           onAddActivity={() => addActivityAtDate()}
+          onOpenSidebar={() => setSidebarOpen(true)}
         />
         <div style={{ flex:1, minHeight:0, display:'flex', overflow:'hidden' }}>
           <Timeline
