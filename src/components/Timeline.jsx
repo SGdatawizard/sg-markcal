@@ -36,16 +36,19 @@ const HOVER_STYLES = `
   .activity-block:not(.is-dragging):not(.is-overlay):hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 30px rgba(20,24,38,0.18) !important;
-    z-index: 30;
     min-width: var(--hover-w) !important;
     width: var(--hover-w) !important;
     overflow: visible !important;
+    z-index: 999 !important;
   }
   .activity-block:not(.is-dragging):not(.is-overlay):hover .activity-meta {
     display: block !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+  }
+  .draggable-item:hover {
+    z-index: 999 !important;
   }
 `
 
@@ -135,6 +138,7 @@ function DraggableItem({ item, channels, viewStart, selectedId, onSelect }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      className="draggable-item"
       onClick={e => { e.stopPropagation(); if (!isDragging) onSelect(item.id) }}
       style={{
         position: 'absolute',
@@ -156,7 +160,7 @@ function LaneDropZone({ channelId, children }) {
   return <div ref={setNodeRef}>{children}</div>
 }
 
-export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign }) {
+export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
@@ -167,15 +171,26 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
-  const visible  = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
-  const days     = Array.from({ length: VIEW_DAYS }, (_, i) => addDays(viewStart, i))
+  const visible    = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
+  const days       = Array.from({ length: VIEW_DAYS }, (_, i) => addDays(viewStart, i))
   const totalWidth = LABEL_WIDTH + VIEW_DAYS * DAY_WIDTH
 
+  // Initial scroll to show today near left
   useEffect(() => {
     if (!wrapRef.current || scrollInit.current) return
     scrollInit.current = true
     requestAnimationFrame(() => { if (wrapRef.current) wrapRef.current.scrollLeft = 30 * DAY_WIDTH })
   }, [])
+
+  // When Today button is clicked, scroll so today is near the left edge
+  useEffect(() => {
+    if (!scrollToToday || !wrapRef.current) return
+    const wrap = wrapRef.current
+    const todayOffset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
+    // Put today 2 columns from the left (after the label)
+    const targetScroll = todayOffset * DAY_WIDTH - DAY_WIDTH * 2
+    wrap.scrollLeft = Math.max(0, targetScroll)
+  }, [scrollToToday])
 
   useEffect(() => {
     const wrap = wrapRef.current
