@@ -1221,26 +1221,21 @@
           length = daysBetween(item.start, item.end);
         if (offset >= VIEW_DAYS || offset + length <= 0) return "";
         const visibleOffset = Math.max(0, offset),
-          visibleLength = Math.min(length, VIEW_DAYS - visibleOffset),
-          left = (visibleOffset / VIEW_DAYS) * 100,
-          width = (visibleLength / VIEW_DAYS) * 100,
+          visibleLength = Math.min(length + Math.min(0, offset), VIEW_DAYS - visibleOffset),
+          leftPx = visibleOffset * DAY_WIDTH,
+          widthPx = visibleLength * DAY_WIDTH,
           isShort = visibleLength <= 2,
           isDone = item.status === "Done",
           isBlocked = item.status === "Blocked",
-          colour = isDone
-            ? "#cbd5e1"
-            : isBlocked
-              ? "#ef4444"
-              : getChannel(item.channel).color,
+          colour = isDone ? "#cbd5e1" : isBlocked ? "#ef4444" : getChannel(item.channel).color,
           bg = isDone ? "#f3f4f6" : isBlocked ? "#fff1f2" : "#fff",
           text = isDone ? "#6b7280" : "#172033",
           top = 12 + (item.layoutRow || 0) * 68,
           titleLen = String(item.title || "Untitled activity").length,
           metaLen = String(`${item.owner || "Unassigned"} • ${item.status || "Planned"} • ${item.category || "Uncategorised"} • ${item.priority || "Tier 1"}`).length,
           hover = Math.min(620, Math.max(280, Math.max(titleLen, metaLen) * 8 + 120)),
-          naturalWidth = visibleLength * DAY_WIDTH,
-          needsExpand = naturalWidth < hover;
-        return `<div class="task ${isShort ? "short-activity" : ""} ${needsExpand ? "expandable" : ""} ${item.id === selectedId ? "selected" : ""}" data-task-id="${item.id}" data-label="${esc(item.title || "Untitled activity")}" style="left:${left}%;width:${width}%;top:${top}px;--task-colour:${colour};--hover-width:${hover}px;background:${bg};color:${text}"><div class="resize-handle resize-left" data-resize="left" data-task-id="${item.id}"></div><div class="resize-handle resize-right" data-resize="right" data-task-id="${item.id}"></div><div class="task-content"><div class="task-title">${esc(item.title || "Untitled activity")}</div><div class="task-meta">${esc(item.owner || "Unassigned")} • ${esc(item.status || "Planned")} • ${categoryIcon(item.category)} ${esc(item.category || "Uncategorised")} • ${esc(item.priority || "Tier 1")}</div></div><span class="status-icon">${statusIcon(item.status)}</span></div>`;
+          needsExpand = widthPx < hover;
+        return `<div class="task ${isShort ? "short-activity" : ""} ${needsExpand ? "expandable" : ""} ${item.id === selectedId ? "selected" : ""}" data-task-id="${item.id}" data-label="${esc(item.title || "Untitled activity")}" style="left:${leftPx}px;width:${widthPx}px;top:${top}px;--task-colour:${colour};--hover-width:${hover}px;background:${bg};color:${text}"><div class="resize-handle resize-left" data-resize="left" data-task-id="${item.id}"></div><div class="resize-handle resize-right" data-resize="right" data-task-id="${item.id}"></div><div class="task-content"><div class="task-title">${esc(item.title || "Untitled activity")}</div><div class="task-meta">${esc(item.owner || "Unassigned")} • ${esc(item.status || "Planned")} • ${categoryIcon(item.category)} ${esc(item.category || "Uncategorised")} • ${esc(item.priority || "Tier 1")}</div></div><span class="status-icon">${statusIcon(item.status)}</span></div>`;
       }
       function renderAttachments(a) {
         const files = a.attachments || [];
@@ -1489,7 +1484,7 @@
         g.style.cssText = [
           "position:fixed", "pointer-events:none", "z-index:9999",
           "height:62px", "min-width:180px", "max-width:340px",
-          `background:#fff`, `border:2px solid ${colour}`, "border-radius:12px",
+          "background:#fff", `border:2px solid ${colour}`, "border-radius:12px",
           "padding:10px 18px 10px 26px", "box-shadow:0 18px 42px rgba(20,24,38,0.22)",
           "display:flex", "flex-direction:column", "justify-content:center",
           "opacity:0.95", "transition:none", "overflow:hidden",
@@ -1516,11 +1511,18 @@
       }
 
       function laneUnderCursor(x, y) {
-        // Hide ghost so elementFromPoint hits the content underneath
         if (dragGhost) dragGhost.style.visibility = "hidden";
         const el = document.elementFromPoint(x, y);
         if (dragGhost) dragGhost.style.visibility = "";
         return el?.closest(".lane-grid") ?? null;
+      }
+
+      // Convert a screen X coordinate to a day offset within the timeline
+      function screenXToDayOffset(screenX) {
+        const lane = document.querySelector(".lane-grid");
+        if (!lane) return 0;
+        const rect = lane.getBoundingClientRect();
+        return Math.round((screenX - rect.left) / DAY_WIDTH);
       }
 
       function beginMove(e, el) {
@@ -1530,6 +1532,10 @@
         suppressLaneCreate = true;
         draftActivity = null;
         selectedId = id;
+
+        // Record which day-column the cursor was over when drag started
+        const startDayOffset = screenXToDayOffset(e.clientX);
+
         dragState = {
           mode: "move",
           id,
@@ -1538,10 +1544,10 @@
           startY: e.clientY,
           lastX: e.clientX,
           lastY: e.clientY,
+          startDayOffset,
           originalStart: date(item.start),
           originalEnd: date(item.end),
           originalChannel: item.channel,
-          currentChannel: item.channel,
           hasMoved: false,
           item,
           colour: getChannel(item.channel).color,
@@ -1578,29 +1584,21 @@
         if (dragState.mode === "move") {
           dragState.lastX = e.clientX;
           dragState.lastY = e.clientY;
-
-          // First movement: fade original, create ghost
           if (dragState.hasMoved && !dragGhost) {
             dragState.el.style.opacity = "0.2";
             dragGhost = createDragGhost(dragState.item, dragState.colour);
           }
           if (dragGhost) positionGhost(e.clientX, e.clientY);
 
-          // Highlight target lane
           const lane = laneUnderCursor(e.clientX, e.clientY);
           document.querySelectorAll(".lane-grid.drag-over").forEach(l => {
             if (l !== lane) l.classList.remove("drag-over");
           });
-          if (lane) {
-            lane.classList.add("drag-over");
-            dragState.currentChannel = lane.dataset.laneChannel;
-          } else {
-            dragState.currentChannel = dragState.originalChannel;
-          }
+          if (lane) lane.classList.add("drag-over");
           return;
         }
 
-        // Resize mode — live preview
+        // Resize — live preview, no network calls
         const deltaDays = Math.round(dx / DAY_WIDTH);
         if (!dragState.snapshotted) { snapshot(); dragState.snapshotted = true; }
         campaigns = campaigns.map((i) => {
@@ -1612,7 +1610,7 @@
           const ne = addDays(dragState.originalEnd, deltaDays);
           return ne <= dragState.originalStart ? i : { ...i, end: fmt(ne) };
         });
-        renderTimeline();
+        renderTimeline(); // lightweight — no Supabase calls during drag
       }
 
       function endPointerAction(e) {
@@ -1634,15 +1632,22 @@
         }
 
         if (dragState?.mode === "move" && moved) {
-          const deltaDays = Math.round((dragState.lastX - dragState.startX) / DAY_WIDTH),
-            lane = laneUnderCursor(dragState.lastX, dragState.lastY),
-            target = lane?.dataset.laneChannel || dragState.originalChannel,
-            dur = Math.round((dragState.originalEnd - dragState.originalStart) / DAY_MS) + 1,
-            ns = addDays(dragState.originalStart, deltaDays);
+          // Use the lane's bounding rect to convert cursor position → day index
+          // This automatically accounts for scroll position
+          const lane = laneUnderCursor(dragState.lastX, dragState.lastY);
+          const targetChannel = lane?.dataset.laneChannel || dragState.originalChannel;
+          const targetLane = lane || document.querySelector(".lane-grid");
+          const rect = targetLane.getBoundingClientRect();
+          const cursorDayIndex = Math.round((dragState.lastX - rect.left) / DAY_WIDTH);
+          // Shift so the day under cursor stays under cursor (not just delta from start)
+          const dayDelta = cursorDayIndex - dragState.startDayOffset;
+          const dur = Math.round((dragState.originalEnd - dragState.originalStart) / DAY_MS) + 1;
+          const ns = addDays(dragState.originalStart, dayDelta);
+
           snapshot();
           campaigns = campaigns.map((i) =>
             i.id === dragState.id
-              ? { ...i, channel: target, start: fmt(ns), end: fmt(addDays(ns, dur - 1)) }
+              ? { ...i, channel: targetChannel, start: fmt(ns), end: fmt(addDays(ns, dur - 1)) }
               : i,
           );
           removeDragGhost();
