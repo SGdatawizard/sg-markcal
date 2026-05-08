@@ -33,12 +33,17 @@ const HOVER_STYLES = `
   .activity-block {
     transition: box-shadow 0.2s, width 0.2s ease, transform 0.15s ease;
   }
-  .activity-block:not(.is-dragging):not(.is-overlay):hover {
+  .activity-block:not(.is-dragging):not(.is-overlay):not(.no-expand):hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 30px rgba(20,24,38,0.18) !important;
     min-width: var(--hover-w) !important;
     width: var(--hover-w) !important;
     overflow: visible !important;
+    z-index: 999 !important;
+  }
+  .activity-block.no-expand:not(.is-dragging):not(.is-overlay):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(20,24,38,0.18) !important;
     z-index: 999 !important;
   }
   .activity-block:not(.is-dragging):not(.is-overlay):hover .activity-meta {
@@ -69,8 +74,9 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
 
   const classes = [
     'activity-block',
-    isDragging  ? 'is-dragging'  : '',
-    isOverlay   ? 'is-overlay'   : '',
+    isDragging        ? 'is-dragging' : '',
+    isOverlay         ? 'is-overlay'  : '',
+    widthPx >= hoverW ? 'no-expand'   : '',
   ].filter(Boolean).join(' ')
 
   return (
