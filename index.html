@@ -455,13 +455,8 @@
         min-width: var(--hover-width, 320px);
       }
       .task.is-dragging {
-        opacity: 0.2;
-      }
-      .snap-ghost {
-        transition: left 0.06s ease, top 0.06s ease;
-      }
-      .lane-grid.drag-over {
-        background-color: rgba(124, 58, 237, 0.04);
+        opacity: 0.9;
+        cursor: grabbing;
       }
       .task.selected {
         outline: 4px solid #e8ebf5;
@@ -1475,89 +1470,65 @@
         saveAll();
         render();
       }
-      // ── Grid-snap drag ───────────────────────────────────────────────────────
-      // Ghost lives inside the lane-grid as a real DOM node, positioned in px.
-      // We never do coordinate math — we just ask "which day column is the
-      // cursor over?" by reading data-day-index attributes stamped on the grid.
+      // ── Drag ─────────────────────────────────────────────────────────────────
+      // The dragged element moves with the cursor via CSS transform.
+      // It snaps to DAY_WIDTH columns so you always see exactly where it'll land.
+      // On drop a ✓ / ✕ confirm bar appears on the block — no save until confirmed.
 
-      let snapGhost = null; // the in-grid preview element
-      let snapState = null; // { id, dur, channelId, dayIndex, colour, title, owner, status }
+      let pendingMove = null; // { id, newStart, newEnd, newChannel, el }
 
-      function dayIndexFromEvent(e) {
-        // Temporarily disable pointer events on dragged element so elementFromPoint sees the lane
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        if (!el) return null;
-        const lane = el.closest(".lane-grid");
-        if (!lane) return null;
-        const wrap = document.querySelector(".timeline-wrap");
-        const laneRect = lane.getBoundingClientRect();
-        // Distance from left edge of lane in screen px, plus the scroll offset
-        const xInLane = (e.clientX - laneRect.left) + (wrap ? wrap.scrollLeft : 0);
-        return Math.max(0, Math.min(VIEW_DAYS - 1, Math.floor(xInLane / DAY_WIDTH)));
+      function getWrap() { return document.querySelector(".timeline-wrap"); }
+
+      function xToDay(clientX) {
+        // Get any lane-grid to measure from — they all start at the same left edge
+        const lane = document.querySelector(".lane-grid");
+        if (!lane) return 0;
+        const wrap = getWrap();
+        const rect = lane.getBoundingClientRect();
+        // clientX relative to lane + scroll = position within full timeline grid
+        const xInGrid = clientX - rect.left + (wrap ? wrap.scrollLeft : 0);
+        return Math.max(0, Math.min(VIEW_DAYS - 1, Math.floor(xInGrid / DAY_WIDTH)));
       }
 
-      function channelFromEvent(e) {
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        return el?.closest(".lane-grid")?.dataset.laneChannel ?? null;
-      }
-
-      function renderSnapGhost() {
-        // Remove old ghost
-        document.querySelectorAll(".snap-ghost").forEach(g => g.remove());
-        if (!snapState) return;
-        const { channelId, dayIndex, dur, colour, title, owner, status } = snapState;
-        const lane = document.querySelector(`.lane-grid[data-lane-channel="${channelId}"]`);
-        if (!lane) return;
-        const leftPx = dayIndex * DAY_WIDTH;
-        const widthPx = dur * DAY_WIDTH;
-        const g = document.createElement("div");
-        g.className = "snap-ghost";
-        g.style.cssText = `
-          position:absolute;
-          left:${leftPx}px;
-          top:8px;
-          width:${widthPx}px;
-          height:62px;
-          background:${colour}22;
-          border:2px dashed ${colour};
-          border-radius:12px;
-          z-index:50;
-          pointer-events:none;
-          display:flex;
-          align-items:center;
-          padding:0 0 0 18px;
-          overflow:hidden;
-        `;
-        g.innerHTML = `<span style="font-weight:900;font-size:12px;color:${colour};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>`;
-        lane.appendChild(g);
-      }
-
-      function clearSnapGhost() {
-        document.querySelectorAll(".snap-ghost").forEach(g => g.remove());
-        snapState = null;
+      function channelAtY(clientY, clientX) {
+        // Find which lane-grid the cursor's Y is inside
+        const lanes = document.querySelectorAll(".lane-grid");
+        for (const lane of lanes) {
+          const r = lane.getBoundingClientRect();
+          if (clientY >= r.top && clientY <= r.bottom) return lane.dataset.laneChannel;
+        }
+        return null;
       }
 
       function beginMove(e, el) {
+        if (pendingMove) return; // don't start a new drag while confirm is showing
         const id = Number(el.dataset.taskId),
           item = campaigns.find((t) => t.id === id);
         if (!item) return;
         suppressLaneCreate = true;
         draftActivity = null;
         selectedId = id;
+
+        const dur = Math.round((date(item.end) - date(item.start)) / DAY_MS) + 1;
+        // How many days into the item did the user click? Keep that offset so
+        // the block doesn't jump — the clicked day stays under the cursor.
+        const clickDayOffset = xToDay(e.clientX) - Math.round((date(item.start) - viewStart) / DAY_MS);
+
         dragState = {
-          mode: "move",
-          id,
-          el,
-          startX: e.clientX,
-          startY: e.clientY,
+          mode: "move", id, el, item, dur,
+          clickDayOffset: Math.max(0, Math.min(dur - 1, clickDayOffset)),
+          startX: e.clientX, startY: e.clientY,
           hasMoved: false,
           originalStart: date(item.start),
-          originalEnd: date(item.end),
           originalChannel: item.channel,
-          dur: Math.round((date(item.end) - date(item.start)) / DAY_MS) + 1,
-          item,
+          // track current snapped position
+          snappedDay: xToDay(e.clientX) - Math.max(0, Math.min(dur - 1, clickDayOffset)),
+          snappedChannel: item.channel,
         };
         document.body.style.userSelect = "none";
+        el.style.transition = "none";
+        el.style.zIndex = "999";
+        el.style.cursor = "grabbing";
         window.addEventListener("mousemove", onPointerMove);
         window.addEventListener("mouseup", endPointerAction);
       }
@@ -1567,9 +1538,7 @@
           item = campaigns.find((t) => t.id === id);
         if (!item) return;
         dragState = {
-          mode: "resize",
-          side: handle.dataset.resize,
-          id,
+          mode: "resize", side: handle.dataset.resize, id,
           startX: e.clientX,
           originalStart: date(item.start),
           originalEnd: date(item.end),
@@ -1583,36 +1552,50 @@
       function onPointerMove(e) {
         if (!dragState) return;
         const dx = e.clientX - dragState.startX;
-        if (Math.abs(dx) > 4 || Math.abs(e.clientY - dragState.startY) > 4)
-          dragState.hasMoved = true;
+        const dy = e.clientY - dragState.startY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragState.hasMoved = true;
 
         if (dragState.mode === "move") {
           if (!dragState.hasMoved) return;
-          // Fade the original block while dragging
-          dragState.el.style.opacity = "0.25";
-          dragState.el.style.pointerEvents = "none";
+          dragState.el.style.boxShadow = "0 18px 42px rgba(20,24,38,0.28)";
+          dragState.el.style.opacity = "0.92";
 
-          const dayIndex = dayIndexFromEvent(e);
-          const channelId = channelFromEvent(e) || dragState.originalChannel;
-          const colour = getChannel(channelId).color;
+          // Snap to column grid
+          const cursorDay = xToDay(e.clientX);
+          const newStartDay = cursorDay - dragState.clickDayOffset;
+          const snappedDay = Math.max(0, Math.min(VIEW_DAYS - dragState.dur, newStartDay));
+          const snappedChannel = channelAtY(e.clientY, e.clientX) || dragState.snappedChannel;
 
-          if (dayIndex !== null) {
-            snapState = {
-              id: dragState.id,
-              dur: dragState.dur,
-              channelId,
-              dayIndex,
-              colour,
-              title: dragState.item.title || "Untitled activity",
-              owner: dragState.item.owner,
-              status: dragState.item.status,
-            };
-            renderSnapGhost();
+          dragState.snappedDay = snappedDay;
+          dragState.snappedChannel = snappedChannel;
+
+          // Move the element visually — offset from its natural rendered position
+          const naturalLeftPx = Math.round((date(dragState.item.start) - viewStart) / DAY_MS) * DAY_WIDTH;
+          const targetLeftPx = snappedDay * DAY_WIDTH;
+          const targetDx = targetLeftPx - naturalLeftPx;
+
+          // Vertical: move to target lane
+          const origLane = dragState.el.closest(".lane-grid");
+          const targetLaneEl = document.querySelector(`.lane-grid[data-lane-channel="${snappedChannel}"]`);
+          let targetDy = dy; // fallback to free-follow if lanes not found
+          if (origLane && targetLaneEl) {
+            const origRect = origLane.getBoundingClientRect();
+            const targRect = targetLaneEl.getBoundingClientRect();
+            targetDy = targRect.top - origRect.top;
           }
+
+          dragState.el.style.transform = `translate(${targetDx}px, ${targetDy}px)`;
+
+          // Highlight target lane
+          document.querySelectorAll(".lane-grid").forEach(l => {
+            l.style.background = l.dataset.laneChannel === snappedChannel
+              ? `linear-gradient(${getChannel(snappedChannel).color}18, ${getChannel(snappedChannel).color}18), repeating-linear-gradient(to right,transparent 0,transparent 61px,var(--line) 61px,var(--line) 62px)`
+              : "";
+          });
           return;
         }
 
-        // Resize — update live, no saves
+        // Resize — live, no saves during drag
         const deltaDays = Math.round(dx / DAY_WIDTH);
         if (!dragState.snapshotted) { snapshot(); dragState.snapshotted = true; }
         campaigns = campaigns.map((i) => {
@@ -1627,61 +1610,129 @@
         renderTimeline();
       }
 
-      function endPointerAction(e) {
+      function endPointerAction() {
         document.body.style.userSelect = "";
         window.removeEventListener("mousemove", onPointerMove);
         window.removeEventListener("mouseup", endPointerAction);
 
+        // Clear lane highlights
+        document.querySelectorAll(".lane-grid").forEach(l => l.style.background = "");
+
         const wasClick = dragState && dragState.mode === "move" && !dragState.hasMoved;
-        const moved = dragState && dragState.mode === "move" && dragState.hasMoved;
+        const moved    = dragState && dragState.mode === "move" && dragState.hasMoved;
 
         if (wasClick) {
           const id = dragState.id;
-          clearSnapGhost();
+          dragState.el.style.transform = "";
+          dragState.el.style.zIndex = "";
+          dragState.el.style.cursor = "";
+          dragState.el.style.boxShadow = "";
           dragState.el.style.opacity = "";
-          dragState.el.style.pointerEvents = "";
           dragState = null;
           suppressLaneCreate = false;
           selectTask(id);
           return;
         }
 
-        if (moved && snapState) {
-          // snapState.dayIndex is the exact grid column — no math needed
-          const newStart = addDays(viewStart, snapState.dayIndex);
-          const newEnd = addDays(newStart, dragState.dur - 1);
+        if (moved) {
+          const newStart = addDays(viewStart, dragState.snappedDay);
+          const newEnd   = addDays(newStart, dragState.dur - 1);
+          const newChannel = dragState.snappedChannel;
+
+          // Check if anything actually changed
+          const unchanged =
+            fmt(newStart) === fmt(dragState.originalStart) &&
+            newChannel === dragState.originalChannel;
+
+          if (unchanged) {
+            dragState.el.style.transform = "";
+            dragState.el.style.zIndex = "";
+            dragState.el.style.cursor = "";
+            dragState.el.style.boxShadow = "";
+            dragState.el.style.opacity = "";
+            dragState = null;
+            setTimeout(() => { suppressLaneCreate = false; }, 150);
+            return;
+          }
+
+          // Store pending move, show confirm UI on the block
+          pendingMove = { id: dragState.id, newStart, newEnd, newChannel };
+          dragState.el.style.transform = "";
+          dragState.el.style.cursor = "";
+          dragState.el.style.boxShadow = "";
+          dragState.el.style.opacity = "";
+
+          // Move block to correct lane immediately for visual feedback, then show confirm
           snapshot();
-          campaigns = campaigns.map((i) =>
-            i.id === dragState.id
-              ? { ...i, channel: snapState.channelId, start: fmt(newStart), end: fmt(newEnd) }
-              : i,
+          campaigns = campaigns.map(i =>
+            i.id === pendingMove.id
+              ? { ...i, channel: newChannel, start: fmt(newStart), end: fmt(newEnd) }
+              : i
           );
-          clearSnapGhost();
-          dragState.el.style.opacity = "";
-          dragState.el.style.pointerEvents = "";
           dragState = null;
-          saveAll();
-        } else if (moved && !snapState) {
-          // Dropped outside grid — restore
-          clearSnapGhost();
-          dragState.el.style.opacity = "";
-          dragState.el.style.pointerEvents = "";
-          dragState = null;
-        } else if (dragState?.mode === "resize") {
+          setTimeout(() => { suppressLaneCreate = false; }, 150);
+          renderTimeline();
+          showMoveConfirm(pendingMove.id);
+          return;
+        }
+
+        if (dragState?.mode === "resize") {
           dragState = null;
           saveAll();
         } else {
-          if (dragState?.el) {
-            dragState.el.style.opacity = "";
-            dragState.el.style.pointerEvents = "";
-          }
           dragState = null;
         }
+        setTimeout(() => { suppressLaneCreate = false; }, 0);
+        render();
+      }
 
-        setTimeout(() => { suppressLaneCreate = false; }, moved ? 150 : 0);
+      function showMoveConfirm(id) {
+        // Find the rendered task block and inject ✓ / ✕ buttons
+        const el = document.querySelector(`.task[data-task-id="${id}"]`);
+        if (!el) return;
+        el.style.zIndex = "999";
+        el.style.outline = "3px solid #6366f1";
+
+        const bar = document.createElement("div");
+        bar.className = "move-confirm-bar";
+        bar.style.cssText = `
+          position:absolute;top:0;left:0;right:0;bottom:0;
+          display:flex;align-items:center;justify-content:center;gap:8px;
+          background:rgba(255,255,255,0.92);border-radius:12px;z-index:10;
+        `;
+        bar.innerHTML = `
+          <button class="confirm-move-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:900;font-size:13px;cursor:pointer">✓ Confirm</button>
+          <button class="cancel-move-btn" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:900;font-size:13px;cursor:pointer">✕ Cancel</button>
+        `;
+        el.appendChild(bar);
+      }
+
+      function confirmMove() {
+        pendingMove = null;
+        document.querySelectorAll(".move-confirm-bar").forEach(b => b.remove());
+        document.querySelectorAll(".task").forEach(t => { t.style.zIndex = ""; t.style.outline = ""; });
+        saveAll();
+        render();
+      }
+
+      function cancelMove() {
+        if (!pendingMove) return;
+        // Undo the optimistic move
+        undoStack.pop(); // remove the snapshot we took
+        const item = campaigns.find(i => i.id === pendingMove.id);
+        // restore from the undo stack's last state
+        const last = undoStack[undoStack.length - 1];
+        if (last) {
+          const prev = JSON.parse(last);
+          campaigns = prev.campaigns;
+        }
+        pendingMove = null;
+        document.querySelectorAll(".move-confirm-bar").forEach(b => b.remove());
         render();
       }
       document.addEventListener("click", (e) => {
+        if (e.target.closest(".confirm-move-btn")) { confirmMove(); return; }
+        if (e.target.closest(".cancel-move-btn"))  { cancelMove();  return; }
         const task = e.target.closest(".task");
         if (task && !e.target.closest(".resize-handle")) {
           if (suppressLaneCreate) {
