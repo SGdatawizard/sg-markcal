@@ -258,15 +258,6 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
         {/* Milestone toolbar */}
         <div style={{ padding:'8px 24px 8px 16px', background:'#fff', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', flexShrink:0 }}>
           <span style={{ fontSize:12, fontWeight:900, color:'#8c93a3', textTransform:'uppercase' }}>Milestones</span>
-          {milestones.map(m => {
-            const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
-            return (
-              <span key={m.id} style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#be123c' }}>
-                🚩 {m.title} · {m.date}
-                <button onClick={() => onDeleteMilestone(m.id)} style={{ border:'none', background:'none', cursor:'pointer', color:'#be123c', fontWeight:900, padding:'0 0 0 4px', fontSize:13, lineHeight:1 }}>×</button>
-              </span>
-            )
-          })}
           {milestoneForm ? (
             <div style={{ display:'flex', gap:6, alignItems:'center' }}>
               <input placeholder="Milestone title" value={mTitle} onChange={e => setMTitle(e.target.value)} style={{ width:160, padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
@@ -330,11 +321,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
                       if (offset < 0 || offset >= viewDays) return null
                       const lineLeft = offset * DAY_WIDTH + DAY_WIDTH / 2
                       return (
-                        <div key={m.id} title={m.title} style={{ position:'absolute', top:0, left:lineLeft, width:2, height:'100%', background:'rgba(190,18,60,0.45)', zIndex:10, pointerEvents:'none' }}>
-                          <div style={{ position:'absolute', top:6, left:'50%', transform:'translateX(-50%)', background:'rgba(190,18,60,0.85)', color:'#fff', fontSize:10, fontWeight:800, borderRadius:4, padding:'2px 5px', whiteSpace:'nowrap' }}>
-                            🚩 {m.title}
-                          </div>
-                        </div>
+                        <div key={m.id} title={m.title} style={{ position:'absolute', top:0, left:lineLeft, width:2, height:'100%', background:'rgba(190,18,60,0.45)', zIndex:10, pointerEvents:'none' }} />
                       )
                     })}
                     {items.map(item => (
