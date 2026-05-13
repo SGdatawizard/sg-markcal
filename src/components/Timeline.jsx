@@ -398,17 +398,19 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
       </div>
       </div>
 
-      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+      <DragOverlay dropAnimation={null}>
         {activeItem ? (
           <ActivityBlock item={activeItem} channels={channels} selectedId={null} isOverlay isDragging={false} />
         ) : activeMilestone ? (
           <div style={{
             width: 6,
-            height: 600,
-            background: 'rgba(190,18,60,0.5)',
+            height: '100vh',
+            background: 'rgba(190,18,60,0.6)',
             borderRadius: 3,
-            boxShadow: '0 0 12px rgba(190,18,60,0.4)',
+            boxShadow: '0 0 16px rgba(190,18,60,0.5)',
             cursor: 'grabbing',
+            position: 'fixed',
+            top: 0,
           }} />
         ) : null}
       </DragOverlay>
