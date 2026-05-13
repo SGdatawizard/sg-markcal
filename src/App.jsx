@@ -228,6 +228,11 @@ export default function App() {
     setMilestones(next)
     saveMilestones(next)
   }
+  function updateMilestone(id, title, date) {
+    const next = milestones.map(m => m.id === id ? { ...m, title, date } : m)
+    setMilestones(next)
+    saveMilestones(next)
+  }
   function deleteMilestone(id) {
     const next = milestones.filter(m => m.id !== id)
     setMilestones(next)
@@ -285,6 +290,7 @@ export default function App() {
             scrollToToday={scrollToToday}
             milestones={milestones}
             onAddMilestone={addMilestone}
+            onUpdateMilestone={updateMilestone}
             onDeleteMilestone={deleteMilestone}
           />
           {drawerOpen && selectedCampaign && (
