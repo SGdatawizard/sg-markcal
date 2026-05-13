@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './index.css'
-import { loadAll, saveChannels, saveOwners, saveCampaigns, subscribeToChanges } from './supabase'
+import { loadAll, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
 import { addDays, startOfWeek, fmtDate } from './dateUtils'
 import { CHANNEL_COLOURS } from './constants'
 import Sidebar from './components/Sidebar'
@@ -27,10 +27,11 @@ const DEFAULT_CHANNELS = [
 const DEFAULT_OWNERS = ['Pierre', 'Maya', 'Alex', 'Sam']
 
 export default function App() {
-  const [channels,  setChannels]  = useState(DEFAULT_CHANNELS)
-  const [owners,    setOwners]    = useState(DEFAULT_OWNERS)
-  const [campaigns, setCampaigns] = useState([])
-  const [loading,   setLoading]   = useState(true)
+  const [channels,    setChannels]    = useState(DEFAULT_CHANNELS)
+  const [owners,      setOwners]      = useState(DEFAULT_OWNERS)
+  const [campaigns,   setCampaigns]   = useState([])
+  const [milestones,  setMilestones]  = useState([])
+  const [loading,     setLoading]     = useState(true)
 
   const [viewStart,      setViewStart]      = useState(() => addDays(startOfWeek(new Date()), -30))
   const [channelFilter,  setChannelFilter]  = useState('all')
@@ -79,10 +80,11 @@ export default function App() {
     async function boot() {
       showSync('Loading…')
       try {
-        const { channels: ch, owners: ow, campaigns: cam } = await loadAll()
+        const { channels: ch, owners: ow, campaigns: cam, milestones: mil } = await loadAll()
         let fCh  = ch  || DEFAULT_CHANNELS
         let fOw  = ow  || DEFAULT_OWNERS
         let fCam = cam ? ensureIds(cam) : []
+        let fMil = mil || []
         if (!ch)  await saveChannels(fCh)
         if (!ow)  await saveOwners(fOw)
         if (!cam) {
@@ -92,7 +94,7 @@ export default function App() {
           ])
           await saveCampaigns(fCam)
         }
-        setChannels(fCh); setOwners(fOw); setCampaigns(fCam)
+        setChannels(fCh); setOwners(fOw); setCampaigns(fCam); setMilestones(fMil)
         showSync('Loaded ✓')
       } catch (e) { showSync('Load failed', true); console.error(e) }
       setLoading(false)
@@ -106,6 +108,7 @@ export default function App() {
       cam => setCampaigns(ensureIds(cam)),
       ch  => setChannels(ch),
       ow  => setOwners(ow),
+      mil => setMilestones(mil),
     )
     return () => sub.unsubscribe()
   }, [])
@@ -219,6 +222,18 @@ export default function App() {
     saveAll(channels, owners, next)
   }
 
+  function addMilestone(title, date) {
+    const m = { id: Date.now(), title, date }
+    const next = [...milestones, m]
+    setMilestones(next)
+    saveMilestones(next)
+  }
+  function deleteMilestone(id) {
+    const next = milestones.filter(m => m.id !== id)
+    setMilestones(next)
+    saveMilestones(next)
+  }
+
   function addActivityAtDate(startDate, channelId) {
     const ch = channelId || (channelFilter === 'all' ? channels[0]?.id : channelFilter)
     const s = startDate || new Date()
@@ -268,6 +283,9 @@ export default function App() {
             onMoveCampaign={moveCampaign}
             onUpdateCampaign={updateCampaign}
             scrollToToday={scrollToToday}
+            milestones={milestones}
+            onAddMilestone={addMilestone}
+            onDeleteMilestone={deleteMilestone}
           />
           {drawerOpen && selectedCampaign && (
             <ActivityDrawer
