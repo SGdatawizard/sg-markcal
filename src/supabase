@@ -4,17 +4,17 @@ import { SUPABASE_URL, SUPABASE_ANON } from './constants'
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
 
 export async function loadAll() {
-  const [{ data: chRows }, { data: owRows }, { data: camRows }] = await Promise.all([
+  const [{ data: chRows }, { data: owRows }, { data: camRows }, { data: milRows }] = await Promise.all([
     sb.from('channels').select('*'),
     sb.from('owners').select('*').order('idx'),
     sb.from('campaigns').select('*'),
+    sb.from('milestones').select('*').catch(() => ({ data: [] })),
   ])
   return {
-    channels: chRows?.length
-      ? chRows.map(r => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      : null,
-    owners: owRows?.length ? owRows.map(r => r.name) : null,
-    campaigns: camRows?.length ? camRows.map(r => r.data) : null,
+    channels:   chRows?.length  ? chRows.map(r => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) : null,
+    owners:     owRows?.length  ? owRows.map(r => r.name) : null,
+    campaigns:  camRows?.length ? camRows.map(r => r.data) : null,
+    milestones: milRows?.length ? milRows.map(r => r.data) : [],
   }
 }
 
@@ -39,7 +39,15 @@ export async function saveCampaigns(campaigns) {
   else await sb.from('campaigns').delete().neq('id', 0)
 }
 
-export function subscribeToChanges(onCampaigns, onChannels, onOwners) {
+export async function saveMilestones(milestones) {
+  const rows = milestones.map(m => ({ id: m.id, data: m }))
+  if (rows.length) await sb.from('milestones').upsert(rows, { onConflict: 'id' })
+  const ids = milestones.map(m => m.id)
+  if (ids.length) await sb.from('milestones').delete().not('id', 'in', `(${ids.join(',')})`)
+  else await sb.from('milestones').delete().neq('id', 0)
+}
+
+export function subscribeToChanges(onCampaigns, onChannels, onOwners, onMilestones) {
   return sb.channel('realtime-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, async () => {
       const { data } = await sb.from('campaigns').select('*')
@@ -52,6 +60,10 @@ export function subscribeToChanges(onCampaigns, onChannels, onOwners) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'owners' }, async () => {
       const { data } = await sb.from('owners').select('*').order('idx')
       if (data?.length) onOwners(data.map(r => r.name))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'milestones' }, async () => {
+      const { data } = await sb.from('milestones').select('*')
+      if (data) onMilestones(data.map(r => r.data))
     })
     .subscribe()
 }
