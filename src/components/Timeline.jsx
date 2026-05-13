@@ -4,7 +4,7 @@ import {
   pointerWithin, useDraggable, useDroppable,
 } from '@dnd-kit/core'
 import { DAY_WIDTH, LABEL_WIDTH, VIEW_DAYS, CATEGORY_ICONS, STATUS_ICONS } from '../constants'
-import { addDays, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
+import { addDays, fmtDate, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
 
 function layoutItems(items) {
   const lanes = []
@@ -161,6 +161,36 @@ function DraggableItem({ item, channels, viewStart, viewDays, selectedId, onSele
   )
 }
 
+function DraggableMilestoneLine({ milestone, lineLeft, onEdit }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `milestone-${milestone.id}`,
+    data: { type: 'milestone', milestone },
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      title={milestone.title}
+      onClick={onEdit}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: lineLeft - 3,
+        width: 6,
+        height: '100%',
+        background: isDragging ? 'rgba(190,18,60,0.15)' : 'rgba(190,18,60,0.35)',
+        zIndex: 1,
+        cursor: 'grab',
+        transition: 'background 0.15s',
+        touchAction: 'none',
+      }}
+      onMouseEnter={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.6)' }}
+      onMouseLeave={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.35)' }}
+    />
+  )
+}
+
 function LaneDropZone({ channelId, children }) {
   const { setNodeRef } = useDroppable({ id: `lane-${channelId}`, data: { channelId } })
   return <div ref={setNodeRef}>{children}</div>
@@ -222,6 +252,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   }, [])
 
   function handleDragStart({ active }) {
+    if (active.data.current?.type === 'milestone') return
     setActiveItem(active.data.current.item)
     setOverChannelId(active.data.current.item.channel)
   }
@@ -234,6 +265,19 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   function handleDragEnd({ active, delta, over }) {
     setActiveItem(null)
     if (!active) return
+
+    // Milestone drag — only horizontal, updates date
+    if (active.data.current?.type === 'milestone') {
+      const m = active.data.current.milestone
+      const dayDelta = Math.round(delta.x / DAY_WIDTH)
+      if (dayDelta !== 0) {
+        const newDate = addDays(parseDate(m.date), dayDelta)
+        onUpdateMilestone(m.id, m.title, fmtDate(newDate))
+      }
+      return
+    }
+
+    // Activity drag
     const item       = active.data.current.item
     const newChannel = over?.data?.current?.channelId || overChannelId || item.channel
     setOverChannelId(null)
@@ -318,24 +362,22 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
                       : isWeekend(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f8fafc', pointerEvents:'none', zIndex:0 }} />
                       : null
                     )}
-                    {/* Milestone lines */}
+                    {/* Milestone lines — below activities */}
                     {milestones.map(m => {
                       const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
                       if (offset < 0 || offset >= viewDays) return null
                       const lineLeft = offset * DAY_WIDTH + DAY_WIDTH / 2
                       return (
-                        <div
+                        <DraggableMilestoneLine
                           key={m.id}
-                          title={m.title}
-                          onClick={e => {
+                          milestone={m}
+                          lineLeft={lineLeft}
+                          onEdit={(e) => {
                             e.stopPropagation()
                             setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
                             setEditTitle(m.title)
                             setEditDate(m.date)
                           }}
-                          style={{ position:'absolute', top:0, left:lineLeft, width:6, height:'100%', marginLeft:-2, background:'rgba(190,18,60,0.35)', zIndex:10, cursor:'pointer', transition:'background 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(190,18,60,0.6)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(190,18,60,0.35)'}
                         />
                       )
                     })}
