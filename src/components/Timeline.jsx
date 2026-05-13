@@ -200,8 +200,9 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
-  const [activeItem,    setActiveItem]    = useState(null)
-  const [overChannelId, setOverChannelId] = useState(null)
+  const [activeItem,       setActiveItem]       = useState(null)
+  const [activeMilestone,  setActiveMilestone]  = useState(null)
+  const [overChannelId,    setOverChannelId]    = useState(null)
   const [milestoneForm, setMilestoneForm] = useState(false)
   const [mTitle, setMTitle] = useState('')
   const [mDate,  setMDate]  = useState('')
@@ -252,7 +253,10 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   }, [])
 
   function handleDragStart({ active }) {
-    if (active.data.current?.type === 'milestone') return
+    if (active.data.current?.type === 'milestone') {
+      setActiveMilestone(active.data.current.milestone)
+      return
+    }
     setActiveItem(active.data.current.item)
     setOverChannelId(active.data.current.item.channel)
   }
@@ -264,6 +268,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
 
   function handleDragEnd({ active, delta, over }) {
     setActiveItem(null)
+    setActiveMilestone(null)
     if (!active) return
 
     // Milestone drag — only horizontal, updates date
@@ -396,6 +401,15 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
       <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
         {activeItem ? (
           <ActivityBlock item={activeItem} channels={channels} selectedId={null} isOverlay isDragging={false} />
+        ) : activeMilestone ? (
+          <div style={{
+            width: 6,
+            height: 600,
+            background: 'rgba(190,18,60,0.5)',
+            borderRadius: 3,
+            boxShadow: '0 0 12px rgba(190,18,60,0.4)',
+            cursor: 'grabbing',
+          }} />
         ) : null}
       </DragOverlay>
 
