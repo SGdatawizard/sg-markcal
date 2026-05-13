@@ -166,7 +166,7 @@ function LaneDropZone({ channelId, children }) {
   return <div ref={setNodeRef}>{children}</div>
 }
 
-export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday, milestones = [], onAddMilestone, onDeleteMilestone }) {
+export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday, milestones = [], onAddMilestone, onUpdateMilestone, onDeleteMilestone }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
@@ -175,6 +175,9 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const [milestoneForm, setMilestoneForm] = useState(false)
   const [mTitle, setMTitle] = useState('')
   const [mDate,  setMDate]  = useState('')
+  const [editingMilestone, setEditingMilestone] = useState(null) // { id, title, date, x, y }
+  const [editTitle, setEditTitle] = useState('')
+  const [editDate,  setEditDate]  = useState('')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -321,7 +324,19 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
                       if (offset < 0 || offset >= viewDays) return null
                       const lineLeft = offset * DAY_WIDTH + DAY_WIDTH / 2
                       return (
-                        <div key={m.id} title={m.title} style={{ position:'absolute', top:0, left:lineLeft, width:2, height:'100%', background:'rgba(190,18,60,0.45)', zIndex:10, pointerEvents:'none' }} />
+                        <div
+                          key={m.id}
+                          title={m.title}
+                          onClick={e => {
+                            e.stopPropagation()
+                            setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
+                            setEditTitle(m.title)
+                            setEditDate(m.date)
+                          }}
+                          style={{ position:'absolute', top:0, left:lineLeft, width:6, height:'100%', marginLeft:-2, background:'rgba(190,18,60,0.35)', zIndex:10, cursor:'pointer', transition:'background 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(190,18,60,0.6)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(190,18,60,0.35)'}
+                        />
                       )
                     })}
                     {items.map(item => (
@@ -341,6 +356,51 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
           <ActivityBlock item={activeItem} channels={channels} selectedId={null} isOverlay isDragging={false} />
         ) : null}
       </DragOverlay>
+
+      {/* Milestone edit popover */}
+      {editingMilestone && (
+        <>
+          {/* Backdrop to close on outside click */}
+          <div onClick={() => setEditingMilestone(null)} style={{ position:'fixed', inset:0, zIndex:1000 }} />
+          <div style={{
+            position: 'fixed',
+            left: Math.min(editingMilestone.x, window.innerWidth - 260),
+            top: editingMilestone.y - 10,
+            transform: 'translateY(-100%)',
+            zIndex: 1001,
+            background: '#fff',
+            border: '1px solid #e4e7ee',
+            borderRadius: 16,
+            padding: 18,
+            width: 240,
+            boxShadow: '0 12px 40px rgba(20,24,38,0.16)',
+          }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <strong style={{ fontSize:13 }}>Edit milestone</strong>
+              <button onClick={() => setEditingMilestone(null)} className="btn-mini">✕</button>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:5 }}>Title</label>
+              <input value={editTitle} onChange={e => setEditTitle(e.target.value)} style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:5 }}>Date</label>
+              <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <button className="btn btn-primary" style={{ fontSize:13 }} onClick={() => {
+                if (!editTitle.trim() || !editDate) return
+                onUpdateMilestone(editingMilestone.id, editTitle.trim(), editDate)
+                setEditingMilestone(null)
+              }}>Save</button>
+              <button className="btn btn-danger" style={{ fontSize:13 }} onClick={() => {
+                onDeleteMilestone(editingMilestone.id)
+                setEditingMilestone(null)
+              }}>Delete</button>
+            </div>
+          </div>
+        </>
+      )}
     </DndContext>
   )
 }
