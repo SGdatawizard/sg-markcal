@@ -166,12 +166,15 @@ function LaneDropZone({ channelId, children }) {
   return <div ref={setNodeRef}>{children}</div>
 }
 
-export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday }) {
+export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday, milestones = [], onAddMilestone, onDeleteMilestone }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
   const [activeItem,    setActiveItem]    = useState(null)
   const [overChannelId, setOverChannelId] = useState(null)
+  const [milestoneForm, setMilestoneForm] = useState(false)
+  const [mTitle, setMTitle] = useState('')
+  const [mDate,  setMDate]  = useState('')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -250,8 +253,38 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <style>{HOVER_STYLES}</style>
-      <div ref={wrapRef} style={{ flex:1, minWidth:0, overflowX:'auto', overflowY:'auto', paddingRight:24, paddingBottom:24, position:'relative' }}>
-        <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth }}>
+      <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+
+        {/* Milestone toolbar */}
+        <div style={{ padding:'8px 24px 8px 16px', background:'#fff', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', flexShrink:0 }}>
+          <span style={{ fontSize:12, fontWeight:900, color:'#8c93a3', textTransform:'uppercase' }}>Milestones</span>
+          {milestones.map(m => {
+            const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
+            return (
+              <span key={m.id} style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#be123c' }}>
+                🚩 {m.title} · {m.date}
+                <button onClick={() => onDeleteMilestone(m.id)} style={{ border:'none', background:'none', cursor:'pointer', color:'#be123c', fontWeight:900, padding:'0 0 0 4px', fontSize:13, lineHeight:1 }}>×</button>
+              </span>
+            )
+          })}
+          {milestoneForm ? (
+            <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+              <input placeholder="Milestone title" value={mTitle} onChange={e => setMTitle(e.target.value)} style={{ width:160, padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+              <input type="date" value={mDate} onChange={e => setMDate(e.target.value)} style={{ padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+              <button className="btn btn-primary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => {
+                if (!mTitle.trim() || !mDate) return
+                onAddMilestone(mTitle.trim(), mDate)
+                setMTitle(''); setMDate(''); setMilestoneForm(false)
+              }}>Add</button>
+              <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => setMilestoneForm(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => setMilestoneForm(true)}>+ Add milestone</button>
+          )}
+        </div>
+
+        <div ref={wrapRef} style={{ flex:1, minHeight:0, overflowX:'auto', overflowY:'auto', paddingRight:24, paddingBottom:24, position:'relative' }}>
+        <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth, position:'relative' }}>
 
           {/* Header row */}
           <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px repeat(${viewDays}, ${DAY_WIDTH}px)`, background:'#f7f8fb', borderBottom:'1px solid var(--line)', position:'sticky', top:0, zIndex:120 }}>
@@ -291,6 +324,19 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
                       : isWeekend(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f8fafc', pointerEvents:'none', zIndex:0 }} />
                       : null
                     )}
+                    {/* Milestone lines */}
+                    {milestones.map(m => {
+                      const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
+                      if (offset < 0 || offset >= viewDays) return null
+                      const lineLeft = offset * DAY_WIDTH + DAY_WIDTH / 2
+                      return (
+                        <div key={m.id} title={m.title} style={{ position:'absolute', top:0, left:lineLeft, width:2, height:'100%', background:'rgba(190,18,60,0.45)', zIndex:10, pointerEvents:'none' }}>
+                          <div style={{ position:'absolute', top:6, left:'50%', transform:'translateX(-50%)', background:'rgba(190,18,60,0.85)', color:'#fff', fontSize:10, fontWeight:800, borderRadius:4, padding:'2px 5px', whiteSpace:'nowrap' }}>
+                            🚩 {m.title}
+                          </div>
+                        </div>
+                      )
+                    })}
                     {items.map(item => (
                       <DraggableItem key={item.id} item={item} channels={channels} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} />
                     ))}
@@ -300,6 +346,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
             )
           })}
         </div>
+      </div>
       </div>
 
       <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
