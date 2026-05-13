@@ -2,17 +2,19 @@ import { useState } from 'react'
 import { ACTIVITY_CATEGORIES, ACTIVITY_TIERS, STATUS_OPTIONS, CATEGORY_ICONS } from '../constants'
 
 export default function ActivityDrawer({ activity, isDraft, channels, owners, onUpdate, onUpdateDraft, onCreate, onDelete, onDuplicate, onClose }) {
-  const [titleVal, setTitleVal]   = useState(activity?.title || '')
-  const [startVal, setStartVal]   = useState(activity?.start || '')
-  const [endVal,   setEndVal]     = useState(activity?.end   || '')
+  const [titleVal, setTitleVal] = useState(activity?.title || '')
+  const [startVal, setStartVal] = useState(activity?.start || '')
+  const [endVal,   setEndVal]   = useState(activity?.end   || '')
+  const [notesVal, setNotesVal] = useState(activity?.notes || '')
 
-  // Keep local title/date state in sync if activity changes (e.g. switching selection)
+  // Sync local state when selected activity changes
   const actId = activity?.id
   const [lastId, setLastId] = useState(actId)
   if (actId !== lastId) {
     setTitleVal(activity?.title || '')
     setStartVal(activity?.start || '')
     setEndVal(activity?.end     || '')
+    setNotesVal(activity?.notes || '')
     setLastId(actId)
   }
 
@@ -31,17 +33,21 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
     else onUpdate({ start: startVal, end: endVal })
   }
 
+  function saveNotes() {
+    if (isDraft) onUpdateDraft({ notes: notesVal })
+    else onUpdate({ notes: notesVal })
+  }
+
   function handleCreate() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
-    onCreate({ ...activity, title: titleVal.trim(), start: startVal, end: endVal })
+    onCreate({ ...activity, title: titleVal.trim(), start: startVal, end: endVal, notes: notesVal })
   }
 
   const update = isDraft ? (f, v) => onUpdateDraft({ [f]: v }) : (f, v) => onUpdate({ [f]: v })
 
   return (
     <aside className="activity-drawer" style={{ width:390, flexShrink:0, background:'#fff', borderLeft:'1px solid var(--line)', padding:24, overflowY:'auto' }}>
-      {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:12 }}>
         <h3>{isDraft ? 'New activity' : 'Edit activity'}</h3>
         <button className="btn-mini" onClick={onClose}>✕</button>
@@ -126,7 +132,8 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
       {/* Notes */}
       <div style={{ marginBottom:14 }}>
         <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:6 }}>Notes</label>
-        <textarea rows={5} value={activity.notes || ''} onChange={e => update('notes', e.target.value)} />
+        <textarea rows={5} value={notesVal} onChange={e => setNotesVal(e.target.value)} style={{ width:'100%', borderRadius:13, border:'1px solid #dfe3ec', padding:'10px 12px', fontFamily:'inherit', resize:'vertical' }} />
+        {!isDraft && <button className="btn btn-primary" style={{ width:'100%', marginTop:6 }} onClick={saveNotes}>Save notes</button>}
       </div>
 
       {/* Actions */}
