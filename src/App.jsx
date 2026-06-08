@@ -8,6 +8,7 @@ import Topbar from './components/Topbar'
 import Timeline from './components/Timeline'
 import ActivityDrawer from './components/ActivityDrawer'
 import SyncStatus from './components/SyncStatus'
+import Dashboard from './components/Dashboard'
 
 function ensureIds(items) {
   const seen = new Set()
@@ -27,6 +28,8 @@ const DEFAULT_CHANNELS = [
 const DEFAULT_OWNERS = ['Pierre', 'Maya', 'Alex', 'Sam']
 
 export default function App() {
+  const [page, setPage] = useState('planner') // 'planner' | 'dashboard'
+
   const [channels,    setChannels]    = useState(DEFAULT_CHANNELS)
   const [owners,      setOwners]      = useState(DEFAULT_OWNERS)
   const [campaigns,   setCampaigns]   = useState([])
@@ -75,7 +78,6 @@ export default function App() {
     isSaving.current = false
   }
 
-  // Boot
   useEffect(() => {
     async function boot() {
       showSync('Loading…')
@@ -102,7 +104,6 @@ export default function App() {
     boot()
   }, [])
 
-  // Realtime
   useEffect(() => {
     const sub = subscribeToChanges(
       cam => setCampaigns(ensureIds(cam)),
@@ -121,7 +122,6 @@ export default function App() {
     await saveAll(s.channels, s.owners, s.campaigns)
   }
 
-  // Channel actions
   function addChannel(name) {
     snapshot()
     const c = { id: 'channel_' + Date.now(), name, color: CHANNEL_COLOURS[channels.length % CHANNEL_COLOURS.length] }
@@ -156,8 +156,6 @@ export default function App() {
     const next = [...channels]; const [item] = next.splice(i, 1); next.splice(j, 0, item)
     setChannels(next); saveAll(next, owners, campaigns)
   }
-
-  // Owner actions
   function addOwner(name) {
     if (owners.some(o => o.toLowerCase() === name.toLowerCase())) { alert('Team member already exists.'); return }
     snapshot()
@@ -178,8 +176,6 @@ export default function App() {
     const nextCam = campaigns.map(c => c.owner === old ? { ...c, owner: fallback } : c)
     setOwners(nextOw); setCampaigns(nextCam); saveAll(channels, nextOw, nextCam)
   }
-
-  // Campaign actions
   function updateCampaign(id, fields) {
     snapshot()
     const next = campaigns.map(c => c.id === id ? { ...c, ...fields } : c)
@@ -221,24 +217,19 @@ export default function App() {
     setCampaigns(next); setSelectedId(created[0].id); setDraftActivity(null); setDrawerOpen(false)
     saveAll(channels, owners, next)
   }
-
   function addMilestone(title, date) {
     const m = { id: Date.now(), title, date }
     const next = [...milestones, m]
-    setMilestones(next)
-    saveMilestones(next)
+    setMilestones(next); saveMilestones(next)
   }
   function updateMilestone(id, title, date) {
     const next = milestones.map(m => m.id === id ? { ...m, title, date } : m)
-    setMilestones(next)
-    saveMilestones(next)
+    setMilestones(next); saveMilestones(next)
   }
   function deleteMilestone(id) {
     const next = milestones.filter(m => m.id !== id)
-    setMilestones(next)
-    saveMilestones(next)
+    setMilestones(next); saveMilestones(next)
   }
-
   function addActivityAtDate(startDate, channelId) {
     const ch = channelId || (channelFilter === 'all' ? channels[0]?.id : channelFilter)
     const s = startDate || new Date()
@@ -252,6 +243,12 @@ export default function App() {
     </div>
   )
 
+  // ── Dashboard page ──────────────────────────────────────────────────────────
+  if (page === 'dashboard') {
+    return <Dashboard onNavigate={setPage} />
+  }
+
+  // ── Planner page ────────────────────────────────────────────────────────────
   const selectedCampaign = draftActivity || campaigns.find(c => c.id === selectedId) || null
 
   return (
@@ -264,6 +261,7 @@ export default function App() {
         onMoveChannel={moveChannel} onAddOwner={addOwner}
         onRenameOwner={renameOwner} onDeleteOwner={deleteOwner}
         isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        onNavigate={setPage}
       />
       <div style={{ flex:1, minWidth:0, height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <Topbar
