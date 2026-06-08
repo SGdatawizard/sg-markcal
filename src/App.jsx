@@ -36,7 +36,8 @@ export default function App() {
   const [milestones,  setMilestones]  = useState([])
   const [loading,     setLoading]     = useState(true)
 
-  const [viewStart,      setViewStart]      = useState(() => addDays(startOfWeek(new Date()), -30))
+  // Start from Jan 1 of current year so all past events this year are in range
+  const [viewStart,      setViewStart]      = useState(() => new Date(new Date().getFullYear(), 0, 1))
   const [channelFilter,  setChannelFilter]  = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [tierFilter,     setTierFilter]     = useState('all')
