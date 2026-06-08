@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CHANNEL_COLOURS } from '../constants'
 
-export default function Sidebar({ channels, owners, campaigns, channelFilter, onFilterChange, onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel, onAddOwner, onRenameOwner, onDeleteOwner, isOpen, onClose }) {
+export default function Sidebar({ channels, owners, campaigns, channelFilter, onFilterChange, onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel, onAddOwner, onRenameOwner, onDeleteOwner, isOpen, onClose, onNavigate }) {
   const [newChannelName, setNewChannelName] = useState('')
   const [addChannelOpen, setAddChannelOpen] = useState(false)
   const [editingChannelId, setEditingChannelId] = useState(null)
@@ -10,6 +10,7 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
   const [newOwnerName, setNewOwnerName] = useState('')
   const [editingOwnerIdx, setEditingOwnerIdx] = useState(null)
   const [editOwnerVal, setEditOwnerVal] = useState('')
+  const [navOpen, setNavOpen] = useState(false)
 
   function handleAddChannel() {
     const name = newChannelName.trim()
@@ -28,16 +29,40 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
 
   const content = (
     <div style={{ padding:22, overflowY:'auto', height:'100%' }}>
-      {/* Logo */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
-        <div style={{ width:42, height:42, borderRadius:14, background:'var(--dark)', color:'#fff', display:'grid', placeItems:'center', fontWeight:900, fontSize:18, flexShrink:0 }}>M</div>
-        <div>
-          <p style={{ color:'var(--muted)', fontSize:13, margin:0 }}>Marketing planner</p>
-          <h1>Campaign Flow</h1>
-        </div>
-        {/* Close button on mobile */}
-        {onClose && (
-          <button onClick={onClose} className="btn-mini" style={{ marginLeft:'auto', flexShrink:0 }}>✕</button>
+      {/* Logo / Nav dropdown */}
+      <div style={{ marginBottom:24, position:'relative' }}>
+        <button
+          onClick={() => setNavOpen(v => !v)}
+          style={{ display:'flex', alignItems:'center', gap:12, width:'100%', border:'none', background:'none', cursor:'pointer', padding:0, textAlign:'left' }}
+        >
+          <div style={{ width:42, height:42, borderRadius:14, background:'var(--dark)', color:'#fff', display:'grid', placeItems:'center', fontWeight:900, fontSize:18, flexShrink:0 }}>M</div>
+          <div style={{ flex:1 }}>
+            <p style={{ color:'var(--muted)', fontSize:13, margin:0 }}>Marketing planner</p>
+            <h1 style={{ margin:0, fontSize:16 }}>Campaign Flow ▾</h1>
+          </div>
+          {onClose && (
+            <span onClick={e => { e.stopPropagation(); onClose() }} className="btn-mini" style={{ marginLeft:'auto', flexShrink:0, cursor:'pointer' }}>✕</span>
+          )}
+        </button>
+
+        {navOpen && (
+          <>
+            <div onClick={() => setNavOpen(false)} style={{ position:'fixed', inset:0, zIndex:98 }} />
+            <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:6, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:99, overflow:'hidden' }}>
+              <button
+                onClick={() => { setNavOpen(false) }}
+                style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 14px', border:'none', background:'#f0f2f7', cursor:'pointer', fontSize:14, fontWeight:800 }}
+              >
+                📅 Marketing Planner
+              </button>
+              <button
+                onClick={() => { setNavOpen(false); onNavigate('dashboard') }}
+                style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 14px', border:'none', background:'#fff', cursor:'pointer', fontSize:14, fontWeight:700, color:'#60697d' }}
+              >
+                📊 Marketing Data
+              </button>
+            </div>
+          </>
         )}
       </div>
 
@@ -140,17 +165,12 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="sidebar-desktop" style={{ width:300, flexShrink:0, background:'#fff', borderRight:'1px solid var(--line)', overflowY:'auto' }}>
         {content}
       </aside>
-
-      {/* Mobile overlay */}
       {isOpen && (
         <div style={{ position:'fixed', inset:0, zIndex:500 }}>
-          {/* Backdrop */}
           <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)' }} />
-          {/* Drawer */}
           <aside style={{ position:'absolute', left:0, top:0, bottom:0, width:300, maxWidth:'90vw', background:'#fff', overflowY:'auto', boxShadow:'4px 0 24px rgba(0,0,0,0.15)' }}>
             {content}
           </aside>
