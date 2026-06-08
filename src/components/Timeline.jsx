@@ -206,7 +206,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const [milestoneForm, setMilestoneForm] = useState(false)
   const [mTitle, setMTitle] = useState('')
   const [mDate,  setMDate]  = useState('')
-  const [editingMilestone, setEditingMilestone] = useState(null) // { id, title, date, x, y }
+  const [editingMilestone, setEditingMilestone] = useState(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDate,  setEditDate]  = useState('')
 
@@ -225,12 +225,18 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
   const days       = Array.from({ length: viewDays }, (_, i) => addDays(viewStart, i))
   const totalWidth = LABEL_WIDTH + viewDays * DAY_WIDTH
 
+  // On mount: scroll so today is near the left edge
   useEffect(() => {
     if (!wrapRef.current || scrollInit.current) return
     scrollInit.current = true
-    requestAnimationFrame(() => { if (wrapRef.current) wrapRef.current.scrollLeft = 30 * DAY_WIDTH })
+    requestAnimationFrame(() => {
+      if (!wrapRef.current) return
+      const todayOffset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
+      wrapRef.current.scrollLeft = Math.max(0, todayOffset * DAY_WIDTH - DAY_WIDTH * 3)
+    })
   }, [])
 
+  // Today button: scroll to today
   useEffect(() => {
     if (!scrollToToday || !wrapRef.current) return
     const wrap = wrapRef.current
@@ -238,14 +244,29 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     wrap.scrollLeft = Math.max(0, todayOffset * DAY_WIDTH - DAY_WIDTH * 2)
   }, [scrollToToday])
 
+  // Infinite scroll — expand right and left as needed
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
     function onScroll() {
       const distFromRight = wrap.scrollWidth - wrap.scrollLeft - wrap.clientWidth
+      const distFromLeft  = wrap.scrollLeft
+
+      // Expand right — just add more days, no scroll jump needed
       if (distFromRight < DAY_WIDTH * 30) {
-        // Grow by 180 days at the end — simple append, no scroll jump
         setViewDays(viewDaysRef.current + 180)
+      }
+
+      // Expand left — prepend days and compensate scroll position so view doesn't jump
+      if (distFromLeft < DAY_WIDTH * 30 && !scrollLock.current) {
+        scrollLock.current = true
+        const added = 90
+        setViewStart(d => addDays(d, -added))
+        setViewDays(viewDaysRef.current + added)
+        requestAnimationFrame(() => {
+          wrap.scrollLeft = wrap.scrollLeft + added * DAY_WIDTH
+          setTimeout(() => { scrollLock.current = false }, 200)
+        })
       }
     }
     wrap.addEventListener('scroll', onScroll, { passive: true })
@@ -271,7 +292,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
     setActiveMilestone(null)
     if (!active) return
 
-    // Milestone drag — only horizontal, updates date
+    // Milestone drag — horizontal only, updates date
     if (active.data.current?.type === 'milestone') {
       const m = active.data.current.milestone
       const dayDelta = Math.round(delta.x / DAY_WIDTH)
@@ -418,7 +439,6 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
       {/* Milestone edit popover */}
       {editingMilestone && (
         <>
-          {/* Backdrop to close on outside click */}
           <div onClick={() => setEditingMilestone(null)} style={{ position:'fixed', inset:0, zIndex:1000 }} />
           <div style={{
             position: 'fixed',
