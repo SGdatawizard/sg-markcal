@@ -3,17 +3,35 @@ import { SUPABASE_URL, SUPABASE_ANON } from './constants'
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
 
-export async function loadAll() {
+// ── Calendars ─────────────────────────────────────────────────────────────────
+
+export async function loadCalendars() {
+  const { data } = await sb.from('calendars').select('*').order('created_at')
+  return data || []
+}
+
+export async function createCalendar(name) {
+  const { data, error } = await sb
+    .from('calendars')
+    .insert({ name })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// ── Per-calendar data ─────────────────────────────────────────────────────────
+
+export async function loadAll(calendarId) {
   const [{ data: chRows }, { data: owRows }, { data: camRows }] = await Promise.all([
-    sb.from('channels').select('*'),
-    sb.from('owners').select('*').order('idx'),
-    sb.from('campaigns').select('*'),
+    sb.from('channels').select('*').eq('calendar_id', calendarId),
+    sb.from('owners').select('*').eq('calendar_id', calendarId).order('idx'),
+    sb.from('campaigns').select('*').eq('calendar_id', calendarId),
   ])
 
-  // Milestones loaded separately so it can never break the main load
   let milRows = []
   try {
-    const { data } = await sb.from('milestones').select('*')
+    const { data } = await sb.from('milestones').select('*').eq('calendar_id', calendarId)
     if (data) milRows = data
   } catch (e) {}
 
@@ -25,54 +43,71 @@ export async function loadAll() {
   }
 }
 
-export async function saveChannels(channels) {
-  const rows = channels.map((ch, i) => ({ id: ch.id, data: { ...ch, sort_order: i } }))
+export async function saveChannels(channels, calendarId) {
+  const rows = channels.map((ch, i) => ({ id: ch.id, calendar_id: calendarId, data: { ...ch, sort_order: i } }))
   await sb.from('channels').upsert(rows, { onConflict: 'id' })
   const ids = channels.map(c => c.id)
-  if (ids.length) await sb.from('channels').delete().not('id', 'in', `(${ids.map(i => `"${i}"`).join(',')})`)
+  if (ids.length) {
+    await sb.from('channels').delete()
+      .eq('calendar_id', calendarId)
+      .not('id', 'in', `(${ids.map(i => `"${i}"`).join(',')})`)
+  }
 }
 
-export async function saveOwners(owners) {
-  const rows = owners.map((name, idx) => ({ idx, name }))
-  await sb.from('owners').upsert(rows, { onConflict: 'idx' })
-  await sb.from('owners').delete().gte('idx', owners.length)
+export async function saveOwners(owners, calendarId) {
+  // Delete all for this calendar then reinsert — simplest approach for owners
+  await sb.from('owners').delete().eq('calendar_id', calendarId)
+  if (owners.length) {
+    const rows = owners.map((name, idx) => ({ calendar_id: calendarId, idx, name }))
+    await sb.from('owners').insert(rows)
+  }
 }
 
-export async function saveCampaigns(campaigns) {
-  const rows = campaigns.map(c => ({ id: c.id, data: c }))
+export async function saveCampaigns(campaigns, calendarId) {
+  const rows = campaigns.map(c => ({ id: c.id, calendar_id: calendarId, data: c }))
   if (rows.length) await sb.from('campaigns').upsert(rows, { onConflict: 'id' })
   const ids = campaigns.map(c => c.id)
-  if (ids.length) await sb.from('campaigns').delete().not('id', 'in', `(${ids.join(',')})`)
-  else await sb.from('campaigns').delete().neq('id', 0)
+  if (ids.length) {
+    await sb.from('campaigns').delete()
+      .eq('calendar_id', calendarId)
+      .not('id', 'in', `(${ids.join(',')})`)
+  } else {
+    await sb.from('campaigns').delete().eq('calendar_id', calendarId)
+  }
 }
 
-export async function saveMilestones(milestones) {
+export async function saveMilestones(milestones, calendarId) {
   try {
-    const rows = milestones.map(m => ({ id: m.id, data: m }))
+    const rows = milestones.map(m => ({ id: m.id, calendar_id: calendarId, data: m }))
     if (rows.length) await sb.from('milestones').upsert(rows, { onConflict: 'id' })
     const ids = milestones.map(m => m.id)
-    if (ids.length) await sb.from('milestones').delete().not('id', 'in', `(${ids.join(',')})`)
-    else await sb.from('milestones').delete().neq('id', 0)
+    if (ids.length) {
+      await sb.from('milestones').delete()
+        .eq('calendar_id', calendarId)
+        .not('id', 'in', `(${ids.join(',')})`)
+    } else {
+      await sb.from('milestones').delete().eq('calendar_id', calendarId)
+    }
   } catch (e) {}
 }
 
-export function subscribeToChanges(onCampaigns, onChannels, onOwners, onMilestones) {
-  return sb.channel('realtime-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, async () => {
-      const { data } = await sb.from('campaigns').select('*')
+export function subscribeToChanges(calendarId, onCampaigns, onChannels, onOwners, onMilestones) {
+  return sb.channel(`realtime-${calendarId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns', filter: `calendar_id=eq.${calendarId}` }, async () => {
+      const { data } = await sb.from('campaigns').select('*').eq('calendar_id', calendarId)
       if (data) onCampaigns(data.map(r => r.data))
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, async () => {
-      const { data } = await sb.from('channels').select('*')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'channels', filter: `calendar_id=eq.${calendarId}` }, async () => {
+      const { data } = await sb.from('channels').select('*').eq('calendar_id', calendarId)
       if (data?.length) onChannels(data.map(r => r.data).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'owners' }, async () => {
-      const { data } = await sb.from('owners').select('*').order('idx')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'owners', filter: `calendar_id=eq.${calendarId}` }, async () => {
+      const { data } = await sb.from('owners').select('*').eq('calendar_id', calendarId).order('idx')
       if (data?.length) onOwners(data.map(r => r.name))
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'milestones' }, async () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'milestones', filter: `calendar_id=eq.${calendarId}` }, async () => {
       try {
-        const { data } = await sb.from('milestones').select('*')
+        const { data } = await sb.from('milestones').select('*').eq('calendar_id', calendarId)
         if (data && onMilestones) onMilestones(data.map(r => r.data))
       } catch (e) {}
     })
