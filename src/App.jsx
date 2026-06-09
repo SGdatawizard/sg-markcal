@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './index.css'
-import { loadAll, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
+import { loadAll, loadCalendars, createCalendar, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
 import { addDays, startOfWeek, fmtDate } from './dateUtils'
 import { CHANNEL_COLOURS } from './constants'
 import Sidebar from './components/Sidebar'
@@ -28,15 +28,19 @@ const DEFAULT_CHANNELS = [
 const DEFAULT_OWNERS = ['Pierre', 'Maya', 'Alex', 'Sam']
 
 export default function App() {
-  const [page, setPage] = useState('planner') // 'planner' | 'dashboard'
+  const [page, setPage] = useState('planner')
 
-  const [channels,    setChannels]    = useState(DEFAULT_CHANNELS)
-  const [owners,      setOwners]      = useState(DEFAULT_OWNERS)
-  const [campaigns,   setCampaigns]   = useState([])
-  const [milestones,  setMilestones]  = useState([])
-  const [loading,     setLoading]     = useState(true)
+  // ── Calendars ───────────────────────────────────────────────────────────────
+  const [calendars,       setCalendars]       = useState([])
+  const [activeCalendarId, setActiveCalendarId] = useState(null)
 
-  // Start from Jan 1 of current year so all past events this year are in range
+  // ── Per-calendar data ───────────────────────────────────────────────────────
+  const [channels,   setChannels]   = useState(DEFAULT_CHANNELS)
+  const [owners,     setOwners]     = useState(DEFAULT_OWNERS)
+  const [campaigns,  setCampaigns]  = useState([])
+  const [milestones, setMilestones] = useState([])
+  const [loading,    setLoading]    = useState(true)
+
   const [viewStart,      setViewStart]      = useState(() => new Date(new Date().getFullYear(), 0, 1))
   const [channelFilter,  setChannelFilter]  = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -51,9 +55,10 @@ export default function App() {
   const [sidebarOpen,   setSidebarOpen]   = useState(false)
   const [syncMsg,   setSyncMsg]   = useState('')
   const [syncError, setSyncError] = useState(false)
-  const syncTimer = useRef(null)
-  const isSaving  = useRef(false)
-  const undoStack = useRef([])
+  const syncTimer  = useRef(null)
+  const isSaving   = useRef(false)
+  const undoStack  = useRef([])
+  const realtimeSub = useRef(null)
 
   function showSync(msg, isError = false) {
     setSyncMsg(msg); setSyncError(isError)
@@ -66,12 +71,12 @@ export default function App() {
     if (undoStack.current.length > 30) undoStack.current.shift()
   }
 
-  async function saveAll(ch = channels, ow = owners, cam = campaigns) {
-    if (isSaving.current) return
+  async function saveAll(ch = channels, ow = owners, cam = campaigns, calId = activeCalendarId) {
+    if (isSaving.current || !calId) return
     isSaving.current = true
     showSync('Saving…')
     try {
-      await Promise.all([saveChannels(ch), saveOwners(ow), saveCampaigns(cam)])
+      await Promise.all([saveChannels(ch, calId), saveOwners(ow, calId), saveCampaigns(cam, calId)])
       showSync('Saved ✓')
     } catch (e) {
       showSync('Save failed', true); console.error(e)
@@ -79,41 +84,111 @@ export default function App() {
     isSaving.current = false
   }
 
+  // ── Boot: load calendars first, then load active calendar data ──────────────
   useEffect(() => {
     async function boot() {
       showSync('Loading…')
       try {
-        const { channels: ch, owners: ow, campaigns: cam, milestones: mil } = await loadAll()
-        let fCh  = ch  || DEFAULT_CHANNELS
-        let fOw  = ow  || DEFAULT_OWNERS
-        let fCam = cam ? ensureIds(cam) : []
-        let fMil = mil || []
-        if (!ch)  await saveChannels(fCh)
-        if (!ow)  await saveOwners(fOw)
-        if (!cam) {
-          fCam = ensureIds([
-            { id: 1, title: 'Example campaign', channel: fCh[0].id, owner: fOw[0], status: 'Planned', priority: 'Tier 1', category: 'Uncategorised', start: fmtDate(addDays(new Date(), 1)), end: fmtDate(addDays(new Date(), 8)), notes: 'Drag this block to a different date or channel.', attachments: [] },
-            { id: 2, title: 'Example content sprint', channel: fCh[1]?.id || fCh[0].id, owner: fOw[1] || fOw[0], status: 'In progress', priority: 'Tier 2', category: 'Coins', start: fmtDate(addDays(new Date(), 5)), end: fmtDate(addDays(new Date(), 18)), notes: 'Add your own channels, team members and activities.', attachments: [] },
-          ])
-          await saveCampaigns(fCam)
+        let cals = await loadCalendars()
+
+        // If no calendars exist yet, create the default one and migrate existing data
+        if (!cals.length) {
+          const cal = await createCalendar('Main Calendar')
+          cals = [cal]
         }
-        setChannels(fCh); setOwners(fOw); setCampaigns(fCam); setMilestones(fMil)
-        showSync('Loaded ✓')
-      } catch (e) { showSync('Load failed', true); console.error(e) }
-      setLoading(false)
+
+        setCalendars(cals)
+        const calId = cals[0].id
+        setActiveCalendarId(calId)
+        await loadCalendarData(calId, cals[0])
+      } catch (e) {
+        showSync('Load failed', true); console.error(e)
+        setLoading(false)
+      }
     }
     boot()
   }, [])
 
-  useEffect(() => {
-    const sub = subscribeToChanges(
+  async function loadCalendarData(calId, cal) {
+    setLoading(true)
+    // Unsubscribe from previous calendar's realtime
+    if (realtimeSub.current) {
+      realtimeSub.current.unsubscribe()
+      realtimeSub.current = null
+    }
+
+    try {
+      const { channels: ch, owners: ow, campaigns: cam, milestones: mil } = await loadAll(calId)
+      let fCh  = ch  || []
+      let fOw  = ow  || []
+      let fCam = cam ? ensureIds(cam) : []
+      let fMil = mil || []
+
+      // Seed defaults if this calendar is brand new and empty
+      if (!ch && !ow && !cam) {
+        fCh = DEFAULT_CHANNELS
+        fOw = DEFAULT_OWNERS
+        await saveChannels(fCh, calId)
+        await saveOwners(fOw, calId)
+      }
+
+      setChannels(fCh)
+      setOwners(fOw)
+      setCampaigns(fCam)
+      setMilestones(fMil)
+      setChannelFilter('all')
+      setSelectedId(null)
+      setDrawerOpen(false)
+      setDraftActivity(null)
+      undoStack.current = []
+      showSync('Loaded ✓')
+    } catch (e) {
+      showSync('Load failed', true); console.error(e)
+    }
+
+    // Subscribe to this calendar's realtime changes
+    realtimeSub.current = subscribeToChanges(
+      calId,
       cam => setCampaigns(ensureIds(cam)),
       ch  => setChannels(ch),
       ow  => setOwners(ow),
       mil => setMilestones(mil),
     )
-    return () => sub.unsubscribe()
-  }, [])
+
+    setLoading(false)
+  }
+
+  async function switchCalendar(calId) {
+    if (calId === activeCalendarId) return
+    setActiveCalendarId(calId)
+    await loadCalendarData(calId)
+  }
+
+  async function handleCreateCalendar(name, selectedChannelIds, allAvailableChannels) {
+    try {
+      showSync('Creating calendar…')
+      const cal = await createCalendar(name)
+      const newCalendars = [...calendars, cal]
+      setCalendars(newCalendars)
+
+      // Pre-populate with selected channels (fresh copies with new IDs)
+      const preChannels = selectedChannelIds.length > 0
+        ? allAvailableChannels
+            .filter(ch => selectedChannelIds.includes(ch.id))
+            .map((ch, i) => ({ ...ch, id: `${ch.id}_${cal.id}_${i}` }))
+        : []
+
+      if (preChannels.length) {
+        await saveChannels(preChannels, cal.id)
+      }
+
+      setActiveCalendarId(cal.id)
+      await loadCalendarData(cal.id)
+      showSync('Calendar created ✓')
+    } catch (e) {
+      showSync('Failed to create calendar', true); console.error(e)
+    }
+  }
 
   async function undoLast() {
     const last = undoStack.current.pop()
@@ -123,6 +198,7 @@ export default function App() {
     await saveAll(s.channels, s.owners, s.campaigns)
   }
 
+  // ── Channel actions ─────────────────────────────────────────────────────────
   function addChannel(name) {
     snapshot()
     const c = { id: 'channel_' + Date.now(), name, color: CHANNEL_COLOURS[channels.length % CHANNEL_COLOURS.length] }
@@ -157,6 +233,8 @@ export default function App() {
     const next = [...channels]; const [item] = next.splice(i, 1); next.splice(j, 0, item)
     setChannels(next); saveAll(next, owners, campaigns)
   }
+
+  // ── Owner actions ───────────────────────────────────────────────────────────
   function addOwner(name) {
     if (owners.some(o => o.toLowerCase() === name.toLowerCase())) { alert('Team member already exists.'); return }
     snapshot()
@@ -177,6 +255,8 @@ export default function App() {
     const nextCam = campaigns.map(c => c.owner === old ? { ...c, owner: fallback } : c)
     setOwners(nextOw); setCampaigns(nextCam); saveAll(channels, nextOw, nextCam)
   }
+
+  // ── Campaign actions ────────────────────────────────────────────────────────
   function updateCampaign(id, fields) {
     snapshot()
     const next = campaigns.map(c => c.id === id ? { ...c, ...fields } : c)
@@ -218,19 +298,22 @@ export default function App() {
     setCampaigns(next); setSelectedId(created[0].id); setDraftActivity(null); setDrawerOpen(false)
     saveAll(channels, owners, next)
   }
+
+  // ── Milestone actions ───────────────────────────────────────────────────────
   function addMilestone(title, date) {
     const m = { id: Date.now(), title, date }
     const next = [...milestones, m]
-    setMilestones(next); saveMilestones(next)
+    setMilestones(next); saveMilestones(next, activeCalendarId)
   }
   function updateMilestone(id, title, date) {
     const next = milestones.map(m => m.id === id ? { ...m, title, date } : m)
-    setMilestones(next); saveMilestones(next)
+    setMilestones(next); saveMilestones(next, activeCalendarId)
   }
   function deleteMilestone(id) {
     const next = milestones.filter(m => m.id !== id)
-    setMilestones(next); saveMilestones(next)
+    setMilestones(next); saveMilestones(next, activeCalendarId)
   }
+
   function addActivityAtDate(startDate, channelId) {
     const ch = channelId || (channelFilter === 'all' ? channels[0]?.id : channelFilter)
     const s = startDate || new Date()
@@ -244,13 +327,10 @@ export default function App() {
     </div>
   )
 
-  // ── Dashboard page ──────────────────────────────────────────────────────────
-  if (page === 'dashboard') {
-    return <Dashboard onNavigate={setPage} />
-  }
+  if (page === 'dashboard') return <Dashboard onNavigate={setPage} />
 
-  // ── Planner page ────────────────────────────────────────────────────────────
   const selectedCampaign = draftActivity || campaigns.find(c => c.id === selectedId) || null
+  const activeCalendar = calendars.find(c => c.id === activeCalendarId)
 
   return (
     <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
@@ -263,6 +343,10 @@ export default function App() {
         onRenameOwner={renameOwner} onDeleteOwner={deleteOwner}
         isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
         onNavigate={setPage}
+        calendars={calendars}
+        activeCalendarId={activeCalendarId}
+        onSwitchCalendar={switchCalendar}
+        onCreateCalendar={handleCreateCalendar}
       />
       <div style={{ flex:1, minWidth:0, height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <Topbar
@@ -275,6 +359,7 @@ export default function App() {
           onToday={() => { setViewStart(addDays(startOfWeek(new Date()), -30)); setScrollToToday(n => n + 1) }}
           onAddActivity={() => addActivityAtDate()}
           onOpenSidebar={() => setSidebarOpen(true)}
+          calendarName={activeCalendar?.name}
         />
         <div style={{ flex:1, minHeight:0, display:'flex', overflow:'hidden' }}>
           <Timeline
