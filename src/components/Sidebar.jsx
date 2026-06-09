@@ -6,7 +6,7 @@ export default function Sidebar({
   onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel,
   onAddOwner, onRenameOwner, onDeleteOwner,
   isOpen, onClose, onNavigate,
-  calendars, activeCalendarId, onSwitchCalendar, onCreateCalendar,
+  calendars, activeCalendarId, onSwitchCalendar, onCreateCalendar, onDeleteCalendar,
 }) {
   const [newChannelName,   setNewChannelName]   = useState('')
   const [addChannelOpen,   setAddChannelOpen]   = useState(false)
@@ -77,15 +77,25 @@ export default function Sidebar({
             <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:6, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 32px rgba(0,0,0,0.12)', zIndex:99, overflow:'hidden' }}>
               {/* Calendar list */}
               {calendars.map(cal => (
-                <button
-                  key={cal.id}
-                  onClick={() => { onSwitchCalendar(cal.id); setCalOpen(false) }}
-                  style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'11px 14px', border:'none', background: cal.id === activeCalendarId ? '#f0f2f7' : '#fff', cursor:'pointer', fontSize:14, fontWeight: cal.id === activeCalendarId ? 800 : 600, color:'#172033', textAlign:'left' }}
-                >
-                  <span>📅</span>
-                  <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cal.name}</span>
-                  {cal.id === activeCalendarId && <span style={{ color:'#7c3aed', fontSize:12 }}>✓</span>}
-                </button>
+                <div key={cal.id} style={{ display:'flex', alignItems:'center' }}>
+                  <button
+                    onClick={() => { onSwitchCalendar(cal.id); setCalOpen(false) }}
+                    style={{ display:'flex', alignItems:'center', gap:10, flex:1, padding:'11px 14px', border:'none', background: cal.id === activeCalendarId ? '#f0f2f7' : '#fff', cursor:'pointer', fontSize:14, fontWeight: cal.id === activeCalendarId ? 800 : 600, color:'#172033', textAlign:'left' }}
+                  >
+                    <span>📅</span>
+                    <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cal.name}</span>
+                    {cal.id === activeCalendarId && <span style={{ color:'#7c3aed', fontSize:12 }}>✓</span>}
+                  </button>
+                  {calendars.length > 1 && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onDeleteCalendar(cal.id) }}
+                      title="Delete calendar"
+                      style={{ border:'none', background:'none', cursor:'pointer', padding:'0 12px', color:'#be123c', fontSize:15, opacity:0.5, flexShrink:0 }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                      onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                    >🗑</button>
+                  )}
+                </div>
               ))}
 
               {/* Divider */}
