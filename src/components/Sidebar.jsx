@@ -1,16 +1,28 @@
 import { useState } from 'react'
 import { CHANNEL_COLOURS } from '../constants'
 
-export default function Sidebar({ channels, owners, campaigns, channelFilter, onFilterChange, onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel, onAddOwner, onRenameOwner, onDeleteOwner, isOpen, onClose, onNavigate }) {
-  const [newChannelName, setNewChannelName] = useState('')
-  const [addChannelOpen, setAddChannelOpen] = useState(false)
+export default function Sidebar({
+  channels, owners, campaigns, channelFilter, onFilterChange,
+  onAddChannel, onRenameChannel, onColorChange, onDeleteChannel, onMoveChannel,
+  onAddOwner, onRenameOwner, onDeleteOwner,
+  isOpen, onClose, onNavigate,
+  calendars, activeCalendarId, onSwitchCalendar, onCreateCalendar,
+}) {
+  const [newChannelName,   setNewChannelName]   = useState('')
+  const [addChannelOpen,   setAddChannelOpen]   = useState(false)
   const [editingChannelId, setEditingChannelId] = useState(null)
-  const [editChannelVal, setEditChannelVal] = useState('')
-  const [openPaletteId, setOpenPaletteId] = useState(null)
-  const [newOwnerName, setNewOwnerName] = useState('')
-  const [editingOwnerIdx, setEditingOwnerIdx] = useState(null)
-  const [editOwnerVal, setEditOwnerVal] = useState('')
-  const [navOpen, setNavOpen] = useState(false)
+  const [editChannelVal,   setEditChannelVal]   = useState('')
+  const [openPaletteId,    setOpenPaletteId]    = useState(null)
+  const [newOwnerName,     setNewOwnerName]     = useState('')
+  const [editingOwnerIdx,  setEditingOwnerIdx]  = useState(null)
+  const [editOwnerVal,     setEditOwnerVal]     = useState('')
+  const [navOpen,          setNavOpen]          = useState(false)
+  const [calOpen,          setCalOpen]          = useState(false)
+
+  // New calendar form state
+  const [creatingCal,     setCreatingCal]     = useState(false)
+  const [newCalName,      setNewCalName]      = useState('')
+  const [selectedChIds,   setSelectedChIds]   = useState([])
 
   function handleAddChannel() {
     const name = newChannelName.trim()
@@ -27,9 +39,111 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
     setNewOwnerName('')
   }
 
+  function toggleChSelection(id) {
+    setSelectedChIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function handleCreateCalendar() {
+    const name = newCalName.trim()
+    if (!name) return
+    onCreateCalendar(name, selectedChIds, channels)
+    setCreatingCal(false)
+    setNewCalName('')
+    setSelectedChIds([])
+    setCalOpen(false)
+  }
+
+  const activeCalendar = calendars.find(c => c.id === activeCalendarId)
+
   const content = (
     <div style={{ padding:22, overflowY:'auto', height:'100%' }}>
-      {/* Logo / Nav dropdown */}
+
+      {/* ── Calendar switcher ─────────────────────────────────────────────── */}
+      <div style={{ marginBottom:16, position:'relative' }}>
+        <div style={{ fontSize:11, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', marginBottom:8, letterSpacing:'0.06em' }}>Calendar</div>
+        <button
+          onClick={() => setCalOpen(v => !v)}
+          style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'10px 14px', background:'#f7f8fb', border:'1px solid #e4e7ee', borderRadius:13, cursor:'pointer', fontWeight:800, fontSize:14, color:'#172033' }}
+        >
+          <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            📅 {activeCalendar?.name || 'Select calendar'}
+          </span>
+          <span style={{ flexShrink:0, marginLeft:8, color:'#8c93a3' }}>▾</span>
+        </button>
+
+        {calOpen && (
+          <>
+            <div onClick={() => { setCalOpen(false); setCreatingCal(false) }} style={{ position:'fixed', inset:0, zIndex:98 }} />
+            <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:6, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 32px rgba(0,0,0,0.12)', zIndex:99, overflow:'hidden' }}>
+              {/* Calendar list */}
+              {calendars.map(cal => (
+                <button
+                  key={cal.id}
+                  onClick={() => { onSwitchCalendar(cal.id); setCalOpen(false) }}
+                  style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'11px 14px', border:'none', background: cal.id === activeCalendarId ? '#f0f2f7' : '#fff', cursor:'pointer', fontSize:14, fontWeight: cal.id === activeCalendarId ? 800 : 600, color:'#172033', textAlign:'left' }}
+                >
+                  <span>📅</span>
+                  <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cal.name}</span>
+                  {cal.id === activeCalendarId && <span style={{ color:'#7c3aed', fontSize:12 }}>✓</span>}
+                </button>
+              ))}
+
+              {/* Divider */}
+              <div style={{ height:1, background:'#e4e7ee', margin:'4px 0' }} />
+
+              {/* Create new calendar */}
+              {!creatingCal ? (
+                <button
+                  onClick={() => setCreatingCal(true)}
+                  style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'11px 14px', border:'none', background:'#fff', cursor:'pointer', fontSize:14, fontWeight:700, color:'#7c3aed', textAlign:'left' }}
+                >
+                  + Create new calendar
+                </button>
+              ) : (
+                <div style={{ padding:14 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ fontSize:12, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', marginBottom:8 }}>New calendar</div>
+                  <input
+                    placeholder="Calendar name"
+                    value={newCalName}
+                    onChange={e => setNewCalName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleCreateCalendar()}
+                    style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13, marginBottom:10, boxSizing:'border-box' }}
+                    autoFocus
+                  />
+                  {channels.length > 0 && (
+                    <>
+                      <div style={{ fontSize:11, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', marginBottom:6 }}>Pre-select channels</div>
+                      <div style={{ display:'grid', gap:5, marginBottom:10 }}>
+                        {channels.map(ch => (
+                          <label key={ch.id} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13, fontWeight:600 }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedChIds.includes(ch.id)}
+                              onChange={() => toggleChSelection(ch.id)}
+                              style={{ accentColor: ch.color }}
+                            />
+                            <span className="dot" style={{ background: ch.color }} />
+                            {ch.name}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                    <button className="btn btn-primary" style={{ fontSize:12 }} onClick={handleCreateCalendar}>Create</button>
+                    <button className="btn btn-secondary" style={{ fontSize:12 }} onClick={() => { setCreatingCal(false); setNewCalName(''); setSelectedChIds([]) }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Divider between calendar switcher and nav */}
+      <div style={{ height:1, background:'#e4e7ee', marginBottom:16 }} />
+
+      {/* ── Logo / Nav dropdown ───────────────────────────────────────────── */}
       <div style={{ marginBottom:24, position:'relative' }}>
         <button
           onClick={() => setNavOpen(v => !v)}
@@ -49,16 +163,10 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
           <>
             <div onClick={() => setNavOpen(false)} style={{ position:'fixed', inset:0, zIndex:98 }} />
             <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:6, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:99, overflow:'hidden' }}>
-              <button
-                onClick={() => { setNavOpen(false) }}
-                style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 14px', border:'none', background:'#f0f2f7', cursor:'pointer', fontSize:14, fontWeight:800 }}
-              >
+              <button onClick={() => setNavOpen(false)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 14px', border:'none', background:'#f0f2f7', cursor:'pointer', fontSize:14, fontWeight:800 }}>
                 📅 Marketing Planner
               </button>
-              <button
-                onClick={() => { setNavOpen(false); onNavigate('dashboard') }}
-                style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 14px', border:'none', background:'#fff', cursor:'pointer', fontSize:14, fontWeight:700, color:'#60697d' }}
-              >
+              <button onClick={() => { setNavOpen(false); onNavigate('dashboard') }} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 14px', border:'none', background:'#fff', cursor:'pointer', fontSize:14, fontWeight:700, color:'#60697d' }}>
                 📊 Marketing Data
               </button>
             </div>
@@ -66,7 +174,7 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
         )}
       </div>
 
-      {/* Channels */}
+      {/* ── Channels ─────────────────────────────────────────────────────── */}
       <div style={{ fontSize:12, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', margin:'20px 0 10px' }}>Your channels</div>
       <button className="btn btn-secondary" style={{ width:'100%', marginBottom:10 }} onClick={() => setAddChannelOpen(v => !v)}>
         {addChannelOpen ? 'Cancel' : '+ Add channel'}
@@ -122,7 +230,7 @@ export default function Sidebar({ channels, owners, campaigns, channelFilter, on
         ))}
       </div>
 
-      {/* Team */}
+      {/* ── Team ─────────────────────────────────────────────────────────── */}
       <div style={{ marginTop:24, padding:16, background:'#f7f8fb', borderRadius:20 }}>
         <strong>Team members</strong>
         <div style={{ display:'grid', gap:8, marginTop:12 }}>
