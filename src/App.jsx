@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './index.css'
-import { loadAll, loadCalendars, createCalendar, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
+import { loadAll, loadCalendars, createCalendar, deleteCalendar, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
 import { addDays, startOfWeek, fmtDate } from './dateUtils'
 import { CHANNEL_COLOURS } from './constants'
 import Sidebar from './components/Sidebar'
@@ -162,6 +162,26 @@ export default function App() {
     if (calId === activeCalendarId) return
     setActiveCalendarId(calId)
     await loadCalendarData(calId)
+  }
+
+  async function handleDeleteCalendar(calId) {
+    if (calendars.length <= 1) { alert('You need at least one calendar.'); return }
+    if (!confirm('Delete this calendar and all its activities? This cannot be undone.')) return
+    try {
+      showSync('Deleting…')
+      await deleteCalendar(calId)
+      const remaining = calendars.filter(c => c.id !== calId)
+      setCalendars(remaining)
+      // Switch to another calendar if we deleted the active one
+      if (calId === activeCalendarId) {
+        const next = remaining[0]
+        setActiveCalendarId(next.id)
+        await loadCalendarData(next.id)
+      }
+      showSync('Deleted ✓')
+    } catch (e) {
+      showSync('Delete failed', true); console.error(e)
+    }
   }
 
   async function handleCreateCalendar(name, selectedChannelIds, allAvailableChannels) {
@@ -347,6 +367,7 @@ export default function App() {
         activeCalendarId={activeCalendarId}
         onSwitchCalendar={switchCalendar}
         onCreateCalendar={handleCreateCalendar}
+        onDeleteCalendar={handleDeleteCalendar}
       />
       <div style={{ flex:1, minWidth:0, height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <Topbar
