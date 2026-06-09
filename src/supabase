@@ -10,6 +10,17 @@ export async function loadCalendars() {
   return data || []
 }
 
+export async function deleteCalendar(calendarId) {
+  // Delete all data for this calendar first
+  await Promise.all([
+    sb.from('campaigns').delete().eq('calendar_id', calendarId),
+    sb.from('channels').delete().eq('calendar_id', calendarId),
+    sb.from('owners').delete().eq('calendar_id', calendarId),
+    sb.from('milestones').delete().eq('calendar_id', calendarId),
+  ])
+  await sb.from('calendars').delete().eq('id', calendarId)
+}
+
 export async function createCalendar(name) {
   const { data, error } = await sb
     .from('calendars')
