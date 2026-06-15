@@ -291,9 +291,12 @@ export default function App() {
   }
   function deleteCampaign(id) {
     snapshot()
-    const next = campaigns.filter(c => c.id !== id)
-    setCampaigns(next); setSelectedId(null); setDrawerOpen(false)
-    saveAll(channels, owners, next)
+    setCampaigns(prev => {
+      const next = prev.filter(c => c.id !== id)
+      saveAll(channels, owners, next)
+      return next
+    })
+    setSelectedId(null); setDrawerOpen(false)
   }
   function duplicateCampaign(id) {
     const item = campaigns.find(c => c.id === id); if (!item) return
