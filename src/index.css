@@ -128,3 +128,8 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px #e8ebf5; }
     min-height: 68px !important;
   }
 }
+
+/* Hide sidebar collapse toggle on mobile */
+@media (max-width: 767px) {
+  .sidebar-toggle { display: none !important; }
+}
