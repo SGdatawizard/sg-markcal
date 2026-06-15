@@ -310,8 +310,9 @@ export default function App() {
     const batch = Date.now() + Math.floor(Math.random() * 1e5)
     for (let i = 0; i < count; i++) {
       let offset = 0
-      if (recurrence === 'Weekly') offset = i * 7
+      if (recurrence === 'Weekly')  offset = i * 7
       if (recurrence === 'Monthly') offset = i * 30
+      if (recurrence === 'Yearly')  offset = i * 365
       created.push({ ...base, id: batch + i, start: fmtDate(addDays(base.start, offset)), end: fmtDate(addDays(base.end, offset)), title: i === 0 ? base.title : `${base.title} ${i + 1}` })
     }
     const next = [...campaigns, ...created]
