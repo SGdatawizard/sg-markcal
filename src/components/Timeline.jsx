@@ -57,7 +57,7 @@ const HOVER_STYLES = `
   }
 `
 
-function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
+function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay }) {
   const ch = channels.find(c => c.id === item.channel) || channels[0]
   const length    = daysBetween(item.start, item.end)
   const isDone    = item.status === 'Done'
@@ -66,6 +66,7 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
   const bg        = isDone ? '#f3f4f6' : isBlocked ? '#fff1f2' : '#fff'
   const textCol   = isDone ? '#6b7280' : '#172033'
   const isShort   = length <= 2
+  const hasLink   = !!item.linked_calendar_id
 
   const titleLen = String(item.title || 'Untitled activity').length
   const metaLen  = String(`${item.owner} • ${item.status} • ${item.category} • ${item.priority}`).length
@@ -78,6 +79,12 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
     isOverlay         ? 'is-overlay'  : '',
     widthPx >= hoverW ? 'no-expand'   : '',
   ].filter(Boolean).join(' ')
+
+  function openLinkedCalendar(e) {
+    e.stopPropagation()
+    const url = `${window.location.origin}${window.location.pathname}#calendar=${item.linked_calendar_id}`
+    window.open(url, '_blank')
+  }
 
   return (
     <div
@@ -96,7 +103,6 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
         outline: !isDragging && !isOverlay && selectedId === item.id ? '4px solid #e8ebf5' : 'none',
         position: 'relative',
         cursor: isOverlay ? 'grabbing' : 'grab',
-        background: bg,
         '--hover-w': hoverW + 'px',
         zIndex: isDragging ? 0 : 2,
       }}
@@ -106,6 +112,7 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
         <div style={{ position:'relative', zIndex:5, width:'100%', minWidth:0 }}>
           <div style={{ fontWeight:900, lineHeight:1.15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {item.title || 'Untitled activity'}
+            {hasLink && <span style={{ marginLeft:6, fontSize:10, background:'#ede9fe', color:'#7c3aed', borderRadius:4, padding:'1px 5px', fontWeight:800, verticalAlign:'middle' }}>📅</span>}
           </div>
           <div className="activity-meta" style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {item.owner} • {item.status} • {CATEGORY_ICONS[item.category] || '📦'} {item.category} • {item.priority}
@@ -115,20 +122,30 @@ function ActivityBlock({ item, channels, selectedId, isDragging, isOverlay }) {
         <div style={{ position:'relative', zIndex:5, width:'100%', minWidth:0 }}>
           <div className="short-title" style={{ fontWeight:900, lineHeight:1.15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {item.title || 'Untitled activity'}
+            {hasLink && <span style={{ marginLeft:6, fontSize:10, background:'#ede9fe', color:'#7c3aed', borderRadius:4, padding:'1px 5px', fontWeight:800, verticalAlign:'middle' }}>📅</span>}
           </div>
           <div className="activity-meta short-meta" style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'none' }}>
             {item.owner} • {item.status} • {CATEGORY_ICONS[item.category] || '📦'} {item.category} • {item.priority}
           </div>
         </div>
       )}
-      <span style={{ position:'absolute', right:10, bottom:8, width:18, height:18, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:12, background:'var(--soft)', zIndex:6 }}>
-        {STATUS_ICONS[item.status] || '📌'}
-      </span>
+      {/* Status icon or link button */}
+      {hasLink && !isDragging && !isOverlay ? (
+        <span
+          title="Open planning calendar"
+          onClick={openLinkedCalendar}
+          style={{ position:'absolute', right:10, bottom:8, width:18, height:18, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:11, background:'#ede9fe', color:'#7c3aed', zIndex:6, cursor:'pointer' }}
+        >→</span>
+      ) : (
+        <span style={{ position:'absolute', right:10, bottom:8, width:18, height:18, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:12, background:'var(--soft)', zIndex:6 }}>
+          {STATUS_ICONS[item.status] || '📌'}
+        </span>
+      )}
     </div>
   )
 }
 
-function DraggableItem({ item, channels, viewStart, viewDays, selectedId, onSelect }) {
+function DraggableItem({ item, channels, calendars, viewStart, viewDays, selectedId, onSelect }) {
   const offset  = Math.round((parseDate(item.start) - viewStart) / 86400000)
   const leftPx  = Math.max(0, offset) * DAY_WIDTH
   const top     = 12 + (item.layoutRow || 0) * 68
@@ -156,7 +173,7 @@ function DraggableItem({ item, channels, viewStart, viewDays, selectedId, onSele
         zIndex: isDragging ? 0 : 2,
       }}
     >
-      <ActivityBlock item={item} channels={channels} selectedId={selectedId} isDragging={isDragging} />
+      <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
     </div>
   )
 }
@@ -196,7 +213,7 @@ function LaneDropZone({ channelId, children }) {
   return <div ref={setNodeRef}>{children}</div>
 }
 
-export default function Timeline({ channels, campaigns, viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday, milestones = [], onAddMilestone, onUpdateMilestone, onDeleteMilestone }) {
+export default function Timeline({ channels, campaigns, calendars = [], viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday, milestones = [], onAddMilestone, onUpdateMilestone, onDeleteMilestone }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
@@ -408,7 +425,7 @@ export default function Timeline({ channels, campaigns, viewStart, setViewStart,
                       )
                     })}
                     {items.map(item => (
-                      <DraggableItem key={item.id} item={item} channels={channels} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} />
+                      <DraggableItem key={item.id} item={item} channels={channels} calendars={calendars} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} />
                     ))}
                   </div>
                 </div>
