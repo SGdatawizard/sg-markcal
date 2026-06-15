@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './index.css'
-import { loadAll, loadCalendars, createCalendar, deleteCalendar, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
+import { sb, loadAll, loadCalendars, createCalendar, deleteCalendar, saveChannels, saveOwners, saveCampaigns, saveMilestones, subscribeToChanges } from './supabase'
 import { addDays, startOfWeek, fmtDate } from './dateUtils'
 import { CHANNEL_COLOURS } from './constants'
 import Sidebar from './components/Sidebar'
@@ -291,12 +291,12 @@ export default function App() {
   }
   function deleteCampaign(id) {
     snapshot()
-    setCampaigns(prev => {
-      const next = prev.filter(c => c.id !== id)
-      saveAll(channels, owners, next)
-      return next
-    })
-    setSelectedId(null); setDrawerOpen(false)
+    const next = campaigns.filter(c => c.id !== id)
+    setCampaigns(next)
+    setSelectedId(null)
+    setDrawerOpen(false)
+    // Delete directly by ID — avoids stale closure issue with saveAll
+    sb.from('campaigns').delete().eq('id', id).then(() => showSync('Saved ✓')).catch(() => showSync('Save failed', true))
   }
   function duplicateCampaign(id) {
     const item = campaigns.find(c => c.id === id); if (!item) return
