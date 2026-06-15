@@ -7,6 +7,7 @@ export default function Sidebar({
   onAddOwner, onRenameOwner, onDeleteOwner,
   isOpen, onClose, onNavigate,
   calendars, activeCalendarId, onSwitchCalendar, onCreateCalendar, onDeleteCalendar,
+  collapsed, onToggleCollapse,
 }) {
   const [newChannelName,   setNewChannelName]   = useState('')
   const [addChannelOpen,   setAddChannelOpen]   = useState(false)
@@ -283,9 +284,22 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="sidebar-desktop" style={{ width:300, flexShrink:0, background:'#fff', borderRight:'1px solid var(--line)', overflowY:'auto' }}>
-        {content}
+      {/* Desktop sidebar */}
+      <aside className="sidebar-desktop" style={{ width: collapsed ? 0 : 300, flexShrink:0, background:'#fff', borderRight: collapsed ? 'none' : '1px solid var(--line)', overflowY:'auto', overflowX:'hidden', transition:'width 0.2s ease' }}>
+        {!collapsed && content}
       </aside>
+
+      {/* Collapse toggle — always visible on desktop */}
+      <button
+        className="sidebar-toggle"
+        onClick={onToggleCollapse}
+        title={collapsed ? 'Show panel' : 'Hide panel'}
+        style={{ position:'fixed', left: collapsed ? 0 : 300, top:'50%', transform:'translateY(-50%)', zIndex:200, width:20, height:48, background:'#fff', border:'1px solid var(--line)', borderLeft: collapsed ? '1px solid var(--line)' : 'none', borderRadius:'0 8px 8px 0', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:'#8c93a3', transition:'left 0.2s ease', boxShadow:'2px 0 8px rgba(0,0,0,0.06)' }}
+      >
+        {collapsed ? '›' : '‹'}
+      </button>
+
+      {/* Mobile overlay */}
       {isOpen && (
         <div style={{ position:'fixed', inset:0, zIndex:500 }}>
           <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)' }} />
