@@ -292,7 +292,7 @@ export default function Sidebar({
         <button
           onClick={onToggleCollapse}
           title={collapsed ? 'Show panel' : 'Hide panel'}
-          style={{ position:'fixed', left: collapsed ? 0 : 280, top:'50%', transform:'translateY(-50%)', zIndex:200, width:20, height:48, background:'#fff', border:'1px solid var(--line)', borderLeft:'none', borderRadius:'0 8px 8px 0', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:'#8c93a3', boxShadow:'2px 0 8px rgba(0,0,0,0.08)', transition:'left 0.2s ease' }}
+          style={{ position:'fixed', left: collapsed ? 0 : 280, top:'50%', transform:'translateY(-50%)', zIndex:200, width:24, height:64, background:'#151927', border:'none', borderRadius:'0 10px 10px 0', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:'#fff', boxShadow:'3px 0 12px rgba(0,0,0,0.2)', transition:'left 0.2s ease' }}
         >
           {collapsed ? '›' : '‹'}
         </button>
