@@ -285,19 +285,18 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="sidebar-desktop" style={{ width: collapsed ? 0 : 300, flexShrink:0, background:'#fff', borderRight: collapsed ? 'none' : '1px solid var(--line)', overflowY:'auto', overflowX:'hidden', transition:'width 0.2s ease' }}>
+      <aside className="sidebar-desktop" style={{ width: collapsed ? 0 : 300, flexShrink:0, background:'#fff', borderRight:'1px solid var(--line)', overflowY: collapsed ? 'hidden' : 'auto', overflowX:'hidden', transition:'width 0.2s ease', position:'relative' }}>
         {!collapsed && content}
-      </aside>
 
-      {/* Collapse toggle — always visible on desktop */}
-      <button
-        className="sidebar-toggle"
-        onClick={onToggleCollapse}
-        title={collapsed ? 'Show panel' : 'Hide panel'}
-        style={{ position:'fixed', left: collapsed ? 0 : 300, top:'50%', transform:'translateY(-50%)', zIndex:200, width:20, height:48, background:'#fff', border:'1px solid var(--line)', borderLeft: collapsed ? '1px solid var(--line)' : 'none', borderRadius:'0 8px 8px 0', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:'#8c93a3', transition:'left 0.2s ease', boxShadow:'2px 0 8px rgba(0,0,0,0.06)' }}
-      >
-        {collapsed ? '›' : '‹'}
-      </button>
+        {/* Toggle tab — sits on the right edge of the sidebar */}
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Show panel' : 'Hide panel'}
+          style={{ position:'fixed', left: collapsed ? 0 : 280, top:'50%', transform:'translateY(-50%)', zIndex:200, width:20, height:48, background:'#fff', border:'1px solid var(--line)', borderLeft:'none', borderRadius:'0 8px 8px 0', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:'#8c93a3', boxShadow:'2px 0 8px rgba(0,0,0,0.08)', transition:'left 0.2s ease' }}
+        >
+          {collapsed ? '›' : '‹'}
+        </button>
+      </aside>
 
       {/* Mobile overlay */}
       {isOpen && (
