@@ -52,7 +52,8 @@ export default function App() {
   const [draftActivity, setDraftActivity] = useState(null)
 
   const [scrollToToday, setScrollToToday] = useState(0)
-  const [sidebarOpen,   setSidebarOpen]   = useState(false)
+  const [sidebarOpen,      setSidebarOpen]      = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [syncMsg,   setSyncMsg]   = useState('')
   const [syncError, setSyncError] = useState(false)
   const syncTimer  = useRef(null)
@@ -391,6 +392,8 @@ export default function App() {
         onSwitchCalendar={switchCalendar}
         onCreateCalendar={handleCreateCalendar}
         onDeleteCalendar={handleDeleteCalendar}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(v => !v)}
       />
       <div style={{ flex:1, minWidth:0, height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <Topbar
