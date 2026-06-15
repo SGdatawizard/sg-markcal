@@ -98,9 +98,13 @@ export default function App() {
         }
 
         setCalendars(cals)
-        const calId = cals[0].id
+        // Check URL hash for direct calendar link e.g. #calendar=<id>
+        const hash = window.location.hash
+        const hashCalId = hash.match(/^#calendar=(.+)$/)?.[1]
+        const targetCal = hashCalId ? cals.find(c => c.id === hashCalId) : null
+        const calId = targetCal ? targetCal.id : cals[0].id
         setActiveCalendarId(calId)
-        await loadCalendarData(calId, cals[0])
+        await loadCalendarData(calId)
       } catch (e) {
         showSync('Load failed', true); console.error(e)
         setLoading(false)
@@ -181,6 +185,21 @@ export default function App() {
       showSync('Deleted ✓')
     } catch (e) {
       showSync('Delete failed', true); console.error(e)
+    }
+  }
+
+  async function handleCreateAndLinkCalendar(activityId, calendarName) {
+    try {
+      showSync('Creating planning calendar…')
+      const cal = await createCalendar(calendarName)
+      setCalendars(prev => [...prev, cal])
+      // Link the calendar to the activity
+      const next = campaigns.map(c => c.id === activityId ? { ...c, linked_calendar_id: cal.id } : c)
+      setCampaigns(next)
+      saveAll(channels, owners, next)
+      showSync('Planning calendar created ✓')
+    } catch (e) {
+      showSync('Failed to create calendar', true); console.error(e)
     }
   }
 
@@ -388,7 +407,7 @@ export default function App() {
         />
         <div style={{ flex:1, minHeight:0, display:'flex', overflow:'hidden' }}>
           <Timeline
-            channels={channels} campaigns={campaigns}
+            channels={channels} campaigns={campaigns} calendars={calendars}
             viewStart={viewStart} setViewStart={setViewStart}
             channelFilter={channelFilter} categoryFilter={categoryFilter}
             tierFilter={tierFilter} search={search} selectedId={selectedId}
@@ -405,13 +424,14 @@ export default function App() {
           {drawerOpen && selectedCampaign && (
             <ActivityDrawer
               activity={selectedCampaign} isDraft={!!draftActivity}
-              channels={channels} owners={owners}
+              channels={channels} owners={owners} calendars={calendars}
               onUpdate={(fields) => updateCampaign(selectedId, fields)}
               onUpdateDraft={(fields) => setDraftActivity(d => ({ ...d, ...fields }))}
               onCreate={createActivity}
               onDelete={() => deleteCampaign(selectedId)}
               onDuplicate={() => duplicateCampaign(selectedId)}
               onClose={() => { setDrawerOpen(false); setDraftActivity(null) }}
+              onCreateAndLinkCalendar={handleCreateAndLinkCalendar}
             />
           )}
         </div>
