@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ACTIVITY_CATEGORIES, ACTIVITY_TIERS, STATUS_OPTIONS, CATEGORY_ICONS } from '../constants'
 
-export default function ActivityDrawer({ activity, isDraft, channels, owners, onUpdate, onUpdateDraft, onCreate, onDelete, onDuplicate, onClose }) {
+export default function ActivityDrawer({ activity, isDraft, channels, owners, calendars = [], onUpdate, onUpdateDraft, onCreate, onDelete, onDuplicate, onClose, onCreateAndLinkCalendar }) {
   const [titleVal,       setTitleVal]       = useState(activity?.title          || '')
   const [startVal,       setStartVal]       = useState(activity?.start          || '')
   const [endVal,         setEndVal]         = useState(activity?.end            || '')
@@ -13,8 +13,9 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
   const [categoryVal,    setCategoryVal]    = useState(activity?.category       || 'Uncategorised')
   const [recurrenceVal,  setRecurrenceVal]  = useState(activity?.recurrence     || 'None')
   const [recCountVal,    setRecCountVal]    = useState(activity?.recurrenceCount || 1)
+  const [creatingLinked, setCreatingLinked] = useState(false)
+  const [newCalName,     setNewCalName]     = useState('')
 
-  // Sync all local state when selected activity changes
   const actId = activity?.id
   const [lastId, setLastId] = useState(actId)
   if (actId !== lastId) {
@@ -34,6 +35,8 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
 
   if (!activity) return null
 
+  const linkedCalendar = calendars.find(c => c.id === activity.linked_calendar_id)
+
   function handleSave() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
@@ -47,7 +50,6 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
   function handleCreate() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
-    // Pass recurrence from local state — this is what was broken before
     onCreate({
       ...activity,
       title: titleVal.trim(), start: startVal, end: endVal, notes: notesVal,
@@ -56,6 +58,19 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
       recurrence: recurrenceVal,
       recurrenceCount: Number(recCountVal),
     })
+  }
+
+  function openLinkedCalendar(calId) {
+    const url = `${window.location.origin}${window.location.pathname}#calendar=${calId}`
+    window.open(url, '_blank')
+  }
+
+  async function handleCreateAndLink() {
+    const name = newCalName.trim()
+    if (!name) return
+    await onCreateAndLinkCalendar(activity.id, name)
+    setCreatingLinked(false)
+    setNewCalName('')
   }
 
   const set = (setter, field) => e => {
@@ -133,26 +148,13 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           <div style={{ marginBottom:14 }}>
             <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:6 }}>Repeat</label>
-            <select value={recurrenceVal} onChange={e => {
-              setRecurrenceVal(e.target.value)
-              onUpdateDraft({ recurrence: e.target.value })
-            }}>
-              <option>None</option>
-              <option>Weekly</option>
-              <option>Monthly</option>
-              <option>Yearly</option>
+            <select value={recurrenceVal} onChange={e => { setRecurrenceVal(e.target.value); onUpdateDraft({ recurrence: e.target.value }) }}>
+              <option>None</option><option>Weekly</option><option>Monthly</option><option>Yearly</option>
             </select>
           </div>
           <div style={{ marginBottom:14 }}>
             <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:6 }}>Occurrences</label>
-            <input
-              type="number" min="1" max="52"
-              value={recCountVal}
-              onChange={e => {
-                setRecCountVal(e.target.value)
-                onUpdateDraft({ recurrenceCount: e.target.value })
-              }}
-            />
+            <input type="number" min="1" max="52" value={recCountVal} onChange={e => { setRecCountVal(e.target.value); onUpdateDraft({ recurrenceCount: e.target.value }) }} />
           </div>
         </div>
       )}
@@ -163,6 +165,72 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
         <textarea rows={5} value={notesVal} onChange={set(setNotesVal, 'notes')} style={{ width:'100%', borderRadius:13, border:'1px solid #dfe3ec', padding:'10px 12px', fontFamily:'inherit', resize:'vertical' }} />
       </div>
 
+      {/* Planning calendar — only on existing activities */}
+      {!isDraft && (
+        <div style={{ marginBottom:20, padding:14, background:'#f7f8fb', borderRadius:14, border:'1px solid #eef1f7' }}>
+          <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:10 }}>Planning Calendar</label>
+
+          {linkedCalendar ? (
+            // Already linked
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:700, color:'#172033' }}>
+                <span>📅</span>
+                <span style={{ flex:1 }}>{linkedCalendar.name}</span>
+              </div>
+              <button
+                onClick={() => openLinkedCalendar(linkedCalendar.id)}
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, width:'100%', padding:'9px 12px', background:'#151927', color:'#fff', border:'none', borderRadius:11, fontWeight:800, fontSize:13, cursor:'pointer' }}
+              >
+                Open planning calendar →
+              </button>
+              <button
+                onClick={() => onUpdate({ linked_calendar_id: null })}
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, width:'100%', padding:'7px 12px', background:'none', color:'#be123c', border:'1px solid #fecdd3', borderRadius:11, fontWeight:700, fontSize:12, cursor:'pointer' }}
+              >
+                Remove link
+              </button>
+            </div>
+          ) : creatingLinked ? (
+            // Creating a new calendar to link
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <input
+                placeholder="Calendar name e.g. Black History Month Planning"
+                value={newCalName}
+                onChange={e => setNewCalName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreateAndLink()}
+                autoFocus
+                style={{ borderRadius:10, border:'1px solid #dfe3ec', padding:'8px 10px', fontSize:13 }}
+              />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                <button className="btn btn-primary" style={{ fontSize:12 }} onClick={handleCreateAndLink}>Create & link</button>
+                <button className="btn btn-secondary" style={{ fontSize:12 }} onClick={() => { setCreatingLinked(false); setNewCalName('') }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            // No link yet — options to link or create
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {/* Link to existing calendar */}
+              {calendars.length > 1 && (
+                <select
+                  defaultValue=""
+                  onChange={e => { if (e.target.value) onUpdate({ linked_calendar_id: e.target.value }) }}
+                  style={{ borderRadius:10, border:'1px solid #dfe3ec', padding:'8px 10px', fontSize:13 }}
+                >
+                  <option value="" disabled>Link to existing calendar…</option>
+                  {calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+              <button
+                onClick={() => setCreatingLinked(true)}
+                style={{ padding:'8px 12px', background:'#fff', border:'1px solid #e4e7ee', borderRadius:11, fontSize:13, fontWeight:700, cursor:'pointer', color:'#7c3aed' }}
+              >
+                + Create new planning calendar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       {isDraft ? (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
@@ -171,9 +239,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, on
         </div>
       ) : (
         <>
-          <button className="btn btn-primary" style={{ width:'100%', marginBottom:10 }} onClick={handleSave}>
-            Save changes
-          </button>
+          <button className="btn btn-primary" style={{ width:'100%', marginBottom:10 }} onClick={handleSave}>Save changes</button>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <button className="btn btn-secondary" onClick={onDuplicate}>Duplicate</button>
             <button className="btn btn-danger" onClick={onDelete}>Delete activity</button>
