@@ -223,6 +223,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   const [milestoneForm, setMilestoneForm] = useState(false)
   const [mTitle, setMTitle] = useState('')
   const [mDate,  setMDate]  = useState('')
+  const [scrollLeft, setScrollLeft] = useState(0)
   const [editingMilestone, setEditingMilestone] = useState(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDate,  setEditDate]  = useState('')
@@ -266,6 +267,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
     const wrap = wrapRef.current
     if (!wrap) return
     function onScroll() {
+      setScrollLeft(wrap.scrollLeft)
       const distFromRight = wrap.scrollWidth - wrap.scrollLeft - wrap.clientWidth
       const distFromLeft  = wrap.scrollLeft
 
@@ -348,33 +350,39 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
         {/* Milestone toolbar */}
         <div
           onClick={() => { if (!milestoneForm) setMilestoneForm(true) }}
-          style={{ padding:'8px 16px', background:'#fff', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', flexShrink:0, minHeight:44, cursor: milestoneForm ? 'default' : 'pointer' }}
+          style={{ position:'relative', background:'#fff', borderBottom:'1px solid var(--line)', flexShrink:0, minHeight:44, cursor: milestoneForm ? 'default' : 'pointer', overflow:'hidden' }}
         >
-          <span style={{ fontSize:11, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', flexShrink:0 }}>Milestones</span>
+          {/* Label — always left */}
+          <span style={{ position:'absolute', left:16, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', pointerEvents:'none', zIndex:2 }}>Milestones</span>
 
-          {/* Existing milestone pills */}
-          {!milestoneForm && milestones.map(m => (
-            <span
-              key={m.id}
-              onClick={e => {
-                e.stopPropagation()
-                setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
-                setEditTitle(m.title)
-                setEditDate(m.date)
-              }}
-              title={`${m.title} — ${m.date}`}
-              style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#be123c', cursor:'pointer', flexShrink:0, transition:'background 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#ffe4e6'}
-              onMouseLeave={e => e.currentTarget.style.background = '#fff1f2'}
-            >
-              🚩 {m.title}
-              <span style={{ fontSize:10, color:'#f43f5e', fontWeight:600, opacity:0.8 }}>{m.date}</span>
-            </span>
-          ))}
+          {/* Positioned pills — one per milestone, centred over its line */}
+          {!milestoneForm && milestones.map(m => {
+            const offset  = Math.round((parseDate(m.date) - viewStart) / 86400000)
+            const lineX   = LABEL_WIDTH + offset * DAY_WIDTH + DAY_WIDTH / 2 - scrollLeft
+            // Only render if pill is in visible area
+            if (lineX < LABEL_WIDTH - 20 || lineX > (wrapRef.current?.clientWidth || 9999) + 100) return null
+            return (
+              <span
+                key={m.id}
+                onClick={e => {
+                  e.stopPropagation()
+                  setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
+                  setEditTitle(m.title)
+                  setEditDate(m.date)
+                }}
+                title={`${m.title} — ${m.date}`}
+                style={{ position:'absolute', left: lineX, top:'50%', transform:'translate(-50%, -50%)', display:'inline-flex', alignItems:'center', gap:4, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#be123c', cursor:'pointer', whiteSpace:'nowrap', zIndex:2, transition:'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#ffe4e6'}
+                onMouseLeave={e => e.currentTarget.style.background = '#fff1f2'}
+              >
+                🚩 {m.title}
+              </span>
+            )
+          })}
 
-          {/* Add form */}
+          {/* Add form — centred in bar */}
           {milestoneForm ? (
-            <div style={{ display:'flex', gap:6, alignItems:'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display:'flex', gap:6, alignItems:'center', justifyContent:'center', height:44, padding:'0 16px' }} onClick={e => e.stopPropagation()}>
               <input placeholder="Milestone title" value={mTitle} onChange={e => setMTitle(e.target.value)} autoFocus style={{ width:160, padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
               <input type="date" value={mDate} onChange={e => setMDate(e.target.value)} style={{ padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
               <button className="btn btn-primary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => {
@@ -385,7 +393,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
               <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => { setMilestoneForm(false); setMTitle(''); setMDate('') }}>Cancel</button>
             </div>
           ) : (
-            <span style={{ fontSize:12, color:'#c4c9d4', fontWeight:600, flexShrink:0 }}>+ click to add</span>
+            <div style={{ height:44 }}/>
           )}
         </div>
 
