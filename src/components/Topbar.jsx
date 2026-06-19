@@ -35,7 +35,7 @@ function CategoryDropdown({ selected, onChange }) {
       </button>
 
       {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, width:210, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:200, padding:8, overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, width:210, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:300, padding:8, overflow:'hidden' }}>
           {/* All categories option */}
           <button
             onClick={() => { onChange([]); setOpen(false) }}
@@ -80,7 +80,7 @@ export default function Topbar({ search, onSearchChange, categoryFilter, onCateg
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   return (
-    <header style={{ flexShrink:0, background:'rgba(255,255,255,0.94)', borderBottom:'1px solid var(--line)', padding:'14px 16px', zIndex:5 }}>
+    <header style={{ flexShrink:0, background:'rgba(255,255,255,0.94)', borderBottom:'1px solid var(--line)', padding:'14px 16px', zIndex:150, position:'relative' }}>
 
       {/* ── Desktop layout ── */}
       <div className="topbar-desktop" style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'center', flexWrap:'wrap' }}>
