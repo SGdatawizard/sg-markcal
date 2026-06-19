@@ -346,21 +346,46 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
         {/* Milestone toolbar */}
-        <div style={{ padding:'8px 24px 8px 16px', background:'#fff', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', flexShrink:0 }}>
-          <span style={{ fontSize:12, fontWeight:900, color:'#8c93a3', textTransform:'uppercase' }}>Milestones</span>
+        <div
+          onClick={() => { if (!milestoneForm) setMilestoneForm(true) }}
+          style={{ padding:'8px 16px', background:'#fff', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', flexShrink:0, minHeight:44, cursor: milestoneForm ? 'default' : 'pointer' }}
+        >
+          <span style={{ fontSize:11, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', flexShrink:0 }}>Milestones</span>
+
+          {/* Existing milestone pills */}
+          {!milestoneForm && milestones.map(m => (
+            <span
+              key={m.id}
+              onClick={e => {
+                e.stopPropagation()
+                setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
+                setEditTitle(m.title)
+                setEditDate(m.date)
+              }}
+              title={`${m.title} — ${m.date}`}
+              style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#be123c', cursor:'pointer', flexShrink:0, transition:'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#ffe4e6'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff1f2'}
+            >
+              🚩 {m.title}
+              <span style={{ fontSize:10, color:'#f43f5e', fontWeight:600, opacity:0.8 }}>{m.date}</span>
+            </span>
+          ))}
+
+          {/* Add form */}
           {milestoneForm ? (
-            <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-              <input placeholder="Milestone title" value={mTitle} onChange={e => setMTitle(e.target.value)} style={{ width:160, padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+            <div style={{ display:'flex', gap:6, alignItems:'center' }} onClick={e => e.stopPropagation()}>
+              <input placeholder="Milestone title" value={mTitle} onChange={e => setMTitle(e.target.value)} autoFocus style={{ width:160, padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
               <input type="date" value={mDate} onChange={e => setMDate(e.target.value)} style={{ padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
               <button className="btn btn-primary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => {
                 if (!mTitle.trim() || !mDate) return
                 onAddMilestone(mTitle.trim(), mDate)
                 setMTitle(''); setMDate(''); setMilestoneForm(false)
               }}>Add</button>
-              <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => setMilestoneForm(false)}>Cancel</button>
+              <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => { setMilestoneForm(false); setMTitle(''); setMDate('') }}>Cancel</button>
             </div>
           ) : (
-            <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => setMilestoneForm(true)}>+ Add milestone</button>
+            <span style={{ fontSize:12, color:'#c4c9d4', fontWeight:600, flexShrink:0 }}>+ click to add</span>
           )}
         </div>
 
