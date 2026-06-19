@@ -43,7 +43,7 @@ export default function App() {
 
   const [viewStart,      setViewStart]      = useState(() => new Date(new Date().getFullYear(), 0, 1))
   const [channelFilter,  setChannelFilter]  = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState([])
   const [tierFilter,     setTierFilter]     = useState('all')
   const [search,         setSearch]         = useState('')
 
