@@ -361,7 +361,7 @@ export default function App() {
   function addActivityAtDate(startDate, channelId) {
     const ch = channelId || (channelFilter === 'all' ? channels[0]?.id : channelFilter)
     const s = startDate || new Date()
-    setDraftActivity({ id: Date.now(), title: '', channel: ch, owner: owners[0] || 'Team', status: 'Planned', priority: 'Tier 1', category: 'Uncategorised', start: fmtDate(s), end: fmtDate(addDays(s, 5)), notes: '', attachments: [], recurrence: 'None', recurrenceCount: 1 })
+    setDraftActivity({ id: Date.now(), title: '', channel: ch, owner: owners[0] || 'Team', status: 'Planned', priority: 'Tier 1', category: 'Uncategorised', start: fmtDate(s), end: fmtDate(s), notes: '', attachments: [], recurrence: 'None', recurrenceCount: 1 })
     setDrawerOpen(true); setSelectedId(null)
   }
 
