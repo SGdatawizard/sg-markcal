@@ -23,7 +23,7 @@ function getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search
   const q = search.toLowerCase()
   return campaigns.filter(i =>
     (channelFilter === 'all' || i.channel === channelFilter) &&
-    (categoryFilter === 'all' || (i.category || 'Uncategorised') === categoryFilter) &&
+    (categoryFilter.length === 0 || categoryFilter.includes(i.category || 'Uncategorised')) &&
     (tierFilter === 'all' || (i.priority || 'Tier 1') === tierFilter) &&
     (String(i.title).toLowerCase().includes(q) || String(i.owner).toLowerCase().includes(q))
   )
