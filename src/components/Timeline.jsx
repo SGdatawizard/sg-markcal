@@ -145,7 +145,7 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
   )
 }
 
-function DraggableItem({ item, channels, calendars, viewStart, viewDays, selectedId, onSelect }) {
+function DraggableItem({ item, channels, calendars, viewStart, viewDays, selectedId, onSelect, onResize }) {
   const offset  = Math.round((parseDate(item.start) - viewStart) / 86400000)
   const leftPx  = Math.max(0, offset) * DAY_WIDTH
   const top     = 12 + (item.layoutRow || 0) * 68
@@ -155,6 +155,30 @@ function DraggableItem({ item, channels, calendars, viewStart, viewDays, selecte
     id: String(item.id),
     data: { item },
   })
+
+  function startResize(e, side) {
+    e.stopPropagation()
+    e.preventDefault()
+    const startX    = e.clientX
+    const origStart = parseDate(item.start)
+    const origEnd   = parseDate(item.end)
+    function onMove(e) {
+      const dayDelta = Math.round((e.clientX - startX) / DAY_WIDTH)
+      if (side === 'right') {
+        const newEnd = addDays(origEnd, dayDelta)
+        if (newEnd >= origStart) onResize(item.id, null, newEnd)
+      } else {
+        const newStart = addDays(origStart, dayDelta)
+        if (newStart <= origEnd) onResize(item.id, newStart, null)
+      }
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   return (
     <div
@@ -173,7 +197,11 @@ function DraggableItem({ item, channels, calendars, viewStart, viewDays, selecte
         zIndex: isDragging ? 0 : 2,
       }}
     >
+      {/* Left resize handle */}
+      <div onMouseDown={e => startResize(e, 'left')} style={{ position:'absolute', left:0, top:0, width:8, height:'100%', cursor:'ew-resize', zIndex:10 }} />
       <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
+      {/* Right resize handle */}
+      <div onMouseDown={e => startResize(e, 'right')} style={{ position:'absolute', right:0, top:0, width:8, height:'100%', cursor:'ew-resize', zIndex:10 }} />
     </div>
   )
 }
@@ -213,7 +241,7 @@ function LaneDropZone({ channelId, children }) {
   return <div ref={setNodeRef}>{children}</div>
 }
 
-export default function Timeline({ channels, campaigns, calendars = [], viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, scrollToToday, milestones = [], onAddMilestone, onUpdateMilestone, onDeleteMilestone }) {
+export default function Timeline({ channels, campaigns, calendars = [], viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, onUpdateCampaign, scrollToToday, milestones = [], onAddMilestone, onUpdateMilestone, onDeleteMilestone }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
@@ -291,6 +319,15 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
     wrap.addEventListener('scroll', onScroll, { passive: true })
     return () => wrap.removeEventListener('scroll', onScroll)
   }, [])
+
+  function handleResize(id, newStart, newEnd) {
+    const item = campaigns.find(c => c.id === id)
+    if (!item) return
+    onUpdateCampaign(id, {
+      start: newStart ? fmtDate(newStart) : item.start,
+      end:   newEnd   ? fmtDate(newEnd)   : item.end,
+    })
+  }
 
   function handleDragStart({ active }) {
     if (active.data.current?.type === 'milestone') {
@@ -462,7 +499,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                       )
                     })}
                     {items.map(item => (
-                      <DraggableItem key={item.id} item={item} channels={channels} calendars={calendars} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} />
+                      <DraggableItem key={item.id} item={item} channels={channels} calendars={calendars} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} onResize={handleResize} />
                     ))}
                   </div>
                 </div>
