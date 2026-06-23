@@ -55,6 +55,35 @@ const HOVER_STYLES = `
   .draggable-item:hover {
     z-index: 999 !important;
   }
+  .resize-handle {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 28px;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.15);
+    cursor: ew-resize;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .resize-handle::before, .resize-handle::after {
+    content: '';
+    width: 2px;
+    height: 12px;
+    background: rgba(255,255,255,0.8);
+    border-radius: 1px;
+  }
+  .draggable-item:hover .resize-handle {
+    opacity: 1;
+  }
+  .resize-handle-left { left: 4px; }
+  .resize-handle-right { right: 4px; }
 `
 
 function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay }) {
@@ -183,25 +212,20 @@ function DraggableItem({ item, channels, calendars, viewStart, viewDays, selecte
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
       className="draggable-item"
       onClick={e => { e.stopPropagation(); if (!isDragging) onSelect(item.id) }}
-      style={{
-        position: 'absolute',
-        left: leftPx,
-        top,
-        width: widthPx,
-        height: 62,
-        touchAction: 'none',
-        zIndex: isDragging ? 0 : 2,
-      }}
+      style={{ position:'absolute', left:leftPx, top, width:widthPx, height:62, touchAction:'none', zIndex: isDragging ? 0 : 2 }}
     >
-      {/* Left resize handle */}
-      <div onMouseDown={e => startResize(e, 'left')} style={{ position:'absolute', left:0, top:0, width:8, height:'100%', cursor:'ew-resize', zIndex:10 }} />
-      <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
-      {/* Right resize handle */}
-      <div onMouseDown={e => startResize(e, 'right')} style={{ position:'absolute', right:0, top:0, width:8, height:'100%', cursor:'ew-resize', zIndex:10 }} />
+      {/* Left resize grip — outside dnd-kit listeners */}
+      <div className="resize-handle resize-handle-left" onMouseDown={e => startResize(e, 'left')} />
+
+      {/* Drag zone — dnd-kit listeners only on this inner div */}
+      <div {...listeners} {...attributes} style={{ position:'absolute', inset:0, cursor: isDragging ? 'grabbing' : 'grab' }}>
+        <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
+      </div>
+
+      {/* Right resize grip — outside dnd-kit listeners */}
+      <div className="resize-handle resize-handle-right" onMouseDown={e => startResize(e, 'right')} />
     </div>
   )
 }
