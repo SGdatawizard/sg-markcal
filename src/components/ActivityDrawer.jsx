@@ -111,7 +111,14 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
         <div style={{ marginBottom:14 }}>
           <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:6 }}>Start</label>
-          <input type="date" value={startVal} onChange={set(setStartVal, 'start')} />
+          <input type="date" value={startVal} onChange={e => {
+            setStartVal(e.target.value)
+            if (isDraft) {
+              onUpdateDraft({ start: e.target.value })
+            } else {
+              setEndVal(new Date().toISOString().slice(0, 10))
+            }
+          }} />
         </div>
         <div style={{ marginBottom:14 }}>
           <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:6 }}>End</label>
