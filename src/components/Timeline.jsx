@@ -55,6 +55,28 @@ const HOVER_STYLES = `
   .draggable-item:hover {
     z-index: 999 !important;
   }
+  .resize-grip {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 32px;
+    background: #151927;
+    border-radius: 4px;
+    cursor: ew-resize;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .resize-grip-left  { left: -6px; }
+  .resize-grip-right { right: -6px; }
+  .draggable-item:hover .resize-grip {
+    opacity: 1;
+  }
 `
 
 function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay }) {
@@ -146,11 +168,10 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
 }
 
 function DraggableItem({ item, channels, calendars, viewStart, viewDays, selectedId, onSelect, onResize }) {
-  const offset   = Math.round((parseDate(item.start) - viewStart) / 86400000)
-  const leftPx   = Math.max(0, offset) * DAY_WIDTH
-  const top      = 12 + (item.layoutRow || 0) * 68
-  const widthPx  = Math.max(DAY_WIDTH, daysBetween(item.start, item.end) * DAY_WIDTH)
-  const isSelected = selectedId === item.id
+  const offset  = Math.round((parseDate(item.start) - viewStart) / 86400000)
+  const leftPx  = Math.max(0, offset) * DAY_WIDTH
+  const top     = 12 + (item.layoutRow || 0) * 68
+  const widthPx = Math.max(DAY_WIDTH, daysBetween(item.start, item.end) * DAY_WIDTH)
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: String(item.id),
@@ -186,34 +207,24 @@ function DraggableItem({ item, channels, calendars, viewStart, viewDays, selecte
       ref={setNodeRef}
       className="draggable-item"
       onClick={e => { e.stopPropagation(); if (!isDragging) onSelect(item.id) }}
-      style={{ position:'absolute', left:leftPx, top, width:widthPx, height:62, touchAction:'none', zIndex: isDragging ? 0 : isSelected ? 10 : 2 }}
+      style={{ position:'absolute', left:leftPx, top, width:widthPx, height:62, touchAction:'none', zIndex: isDragging ? 0 : 2 }}
     >
-      {/* Left resize grip — only shown when selected */}
-      {isSelected && (
-        <div
-          onMouseDown={e => startResize(e, 'left')}
-          style={{ position:'absolute', left:-6, top:'50%', transform:'translateY(-50%)', width:12, height:32, background:'#151927', borderRadius:4, cursor:'ew-resize', zIndex:20, display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}
-        >
-          <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
-          <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
-        </div>
-      )}
+      {/* Left resize grip — CSS hover shows it, outside dnd-kit listeners */}
+      <div className="resize-grip resize-grip-left" onMouseDown={e => startResize(e, 'left')}>
+        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
+        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
+      </div>
 
-      {/* Main drag zone — dnd-kit listeners here */}
+      {/* dnd-kit drag zone */}
       <div {...listeners} {...attributes} style={{ position:'absolute', inset:0, cursor: isDragging ? 'grabbing' : 'grab' }}>
         <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
       </div>
 
-      {/* Right resize grip — only shown when selected */}
-      {isSelected && (
-        <div
-          onMouseDown={e => startResize(e, 'right')}
-          style={{ position:'absolute', right:-6, top:'50%', transform:'translateY(-50%)', width:12, height:32, background:'#151927', borderRadius:4, cursor:'ew-resize', zIndex:20, display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}
-        >
-          <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
-          <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
-        </div>
-      )}
+      {/* Right resize grip */}
+      <div className="resize-grip resize-grip-right" onMouseDown={e => startResize(e, 'right')}>
+        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
+        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
+      </div>
     </div>
   )
 }
