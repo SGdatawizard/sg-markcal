@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   pointerWithin, useDraggable, useDroppable,
@@ -30,20 +30,69 @@ function getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search
 }
 
 const STYLES = `
-  .activity-block {
-    transition: box-shadow 0.15s, transform 0.15s;
+  .act-wrap { position: absolute; }
+  .act-block {
+    width: 100%; height: 52px;
+    border-radius: 8px;
+    display: flex; align-items: center;
+    overflow: hidden;
+    position: relative;
+    user-select: none;
+    transition: box-shadow 0.15s, transform 0.1s;
   }
-  .activity-block:not(.is-dragging):not(.is-overlay):hover {
+  .act-block:not(.is-dragging):hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(99,102,241,0.15) !important;
+    box-shadow: 0 6px 20px rgba(99,102,241,0.18) !important;
     z-index: 999 !important;
+    overflow: visible !important;
   }
-  .activity-block:not(.is-dragging):not(.is-overlay):hover .act-meta {
-    display: block !important;
+  .act-block:not(.is-dragging):hover .act-tooltip {
+    display: flex !important;
   }
-  .draggable-item { position: absolute; }
-  .draggable-item:hover { z-index: 50 !important; }
-
+  .act-tooltip {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    min-width: 220px;
+    max-width: 320px;
+    background: #1a1a2e;
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    white-space: nowrap;
+  }
+  .act-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 16px;
+    border: 6px solid transparent;
+    border-top-color: #1a1a2e;
+  }
+  .act-tooltip-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 280px;
+  }
+  .act-tooltip-row {
+    color: #a0a8c0;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .act-tooltip-row span { color: #e0e3f0; }
   .resize-grip {
     position: absolute;
     top: 50%;
@@ -56,23 +105,41 @@ const STYLES = `
     gap: 2px;
     cursor: ew-resize;
     z-index: 30;
+    border-radius: 4px;
+    background: rgba(99,102,241,0.9);
     opacity: 0;
     transition: opacity 0.15s;
-    border-radius: 4px;
   }
   .resize-grip-left  { left: -7px; }
   .resize-grip-right { right: -7px; }
   .resize-grip-bar {
-    width: 3px;
-    height: 14px;
+    width: 2px; height: 14px;
     border-radius: 2px;
     background: #fff;
     opacity: 0.9;
   }
-  .draggable-item:hover .resize-grip { opacity: 1; }
+  .act-wrap.is-selected .resize-grip { opacity: 1; }
 `
 
-// ── Activity block (visual only, no drag logic) ──────────────────────────────
+// ── Tooltip content ───────────────────────────────────────────────────────────
+function ActivityTooltip({ item, channels }) {
+  const ch = channels.find(c => c.id === item.channel)
+  const dur = daysBetween(item.start, item.end)
+  return (
+    <div className="act-tooltip">
+      <div className="act-tooltip-title">{item.title || 'Untitled activity'}</div>
+      <div className="act-tooltip-row">Channel: <span>{ch?.name || '—'}</span></div>
+      <div className="act-tooltip-row">Owner: <span>{item.owner}</span></div>
+      <div className="act-tooltip-row">Status: <span>{item.status}</span></div>
+      <div className="act-tooltip-row">Priority: <span>{item.priority}</span></div>
+      <div className="act-tooltip-row">Category: <span>{CATEGORY_ICONS[item.category]} {item.category}</span></div>
+      <div className="act-tooltip-row">Dates: <span>{item.start} → {item.end} ({dur}d)</span></div>
+      {item.notes && <div className="act-tooltip-row">Notes: <span style={{ whiteSpace:'normal', maxWidth:200 }}>{item.notes.slice(0, 80)}{item.notes.length > 80 ? '…' : ''}</span></div>}
+    </div>
+  )
+}
+
+// ── Activity block (visual) ───────────────────────────────────────────────────
 function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay }) {
   const ch      = channels.find(c => c.id === item.channel) || channels[0]
   const len     = daysBetween(item.start, item.end)
@@ -81,8 +148,6 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
   const accent  = isDone ? '#94a3b8' : isBlock ? '#ef4444' : (ch?.color || '#6366f1')
   const hasLink = !!item.linked_calendar_id
   const isShort = len <= 1
-
-  // Tinted background from channel colour
   const bgAlpha = isDone ? '#f3f4f6' : isBlock ? '#fff1f2' : `${accent}12`
   const textCol = isDone ? '#6b7280' : '#1a1a2e'
 
@@ -93,32 +158,30 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
 
   return (
     <div
-      className={['activity-block', isDragging ? 'is-dragging' : '', isOverlay ? 'is-overlay' : ''].filter(Boolean).join(' ')}
+      className={['act-block', isDragging ? 'is-dragging' : '', isOverlay ? 'is-overlay' : ''].filter(Boolean).join(' ')}
       style={{
-        width: '100%', height: 52,
         background: bgAlpha,
         border: `1.5px solid ${accent}40`,
         borderLeft: `3px solid ${accent}`,
-        borderRadius: 8,
         padding: isShort ? '6px 8px' : '6px 28px 6px 10px',
-        display: 'flex', alignItems: 'center', overflow: 'hidden',
         color: textCol,
         opacity: isDragging ? 0.35 : 1,
         outline: !isDragging && !isOverlay && selectedId === item.id ? `2px solid ${accent}` : 'none',
         outlineOffset: 1,
-        position: 'relative',
         cursor: isOverlay ? 'grabbing' : 'grab',
         boxShadow: isOverlay ? '0 12px 32px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
-        userSelect: 'none',
       }}
     >
+      {/* Hover tooltip */}
+      {!isDragging && !isOverlay && <ActivityTooltip item={item} channels={channels} />}
+
       <div style={{ minWidth:0, flex:1 }}>
         <div style={{ fontSize:12, fontWeight:700, lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
           {item.title || 'Untitled'}
           {hasLink && <span style={{ marginLeft:5, fontSize:9, background:'var(--accent-bg)', color:'var(--accent-txt)', borderRadius:3, padding:'1px 4px', fontWeight:700, verticalAlign:'middle' }}>↗</span>}
         </div>
         {!isShort && (
-          <div className="act-meta" style={{ fontSize:10, color:'var(--muted)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+          <div style={{ fontSize:10, color:'var(--muted)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {item.owner} · {item.status} · {item.priority}
           </div>
         )}
@@ -127,7 +190,7 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
         <span onClick={openLink} title="Open planning calendar"
           style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', width:16, height:16, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:9, background:'var(--accent-bg)', color:'var(--accent)', cursor:'pointer', zIndex:6 }}>→</span>
       ) : !isShort ? (
-        <span style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', fontSize:11, zIndex:6, opacity:0.6 }}>
+        <span style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', fontSize:11, zIndex:6, opacity:0.5 }}>
           {STATUS_ICONS[item.status] || '·'}
         </span>
       ) : null}
@@ -135,71 +198,96 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
   )
 }
 
-// ── Draggable wrapper + resize grips ─────────────────────────────────────────
+// ── Draggable item + resize grips ─────────────────────────────────────────────
 function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSelect, onResize }) {
   const offset  = Math.round((parseDate(item.start) - viewStart) / 86400000)
   const leftPx  = Math.max(0, offset) * DAY_WIDTH
   const top     = 10 + (item.layoutRow || 0) * 62
   const widthPx = Math.max(DAY_WIDTH - 4, daysBetween(item.start, item.end) * DAY_WIDTH - 4)
+  const isSelected = selectedId === item.id
 
-  // Use delay activation — gives mousedown 150ms to fire on resize grips before dnd-kit claims it
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: String(item.id),
     data: { item },
   })
 
-  function startResize(e, side) {
-    e.stopPropagation()
-    e.preventDefault()
-    const startX    = e.clientX
-    const origStart = parseDate(item.start)
-    const origEnd   = parseDate(item.end)
-    function onMove(mv) {
-      const delta = Math.round((mv.clientX - startX) / DAY_WIDTH)
-      if (side === 'right') {
-        const ne = addDays(origEnd, delta)
-        if (ne >= origStart) onResize(item.id, null, ne)
-      } else {
-        const ns = addDays(origStart, delta)
-        if (ns <= origEnd) onResize(item.id, ns, null)
+  const leftGripRef  = useRef(null)
+  const rightGripRef = useRef(null)
+
+  // Attach native capture-phase pointerdown to grips so they fire before dnd-kit
+  useEffect(() => {
+    const grips = [
+      { el: leftGripRef.current,  side: 'left'  },
+      { el: rightGripRef.current, side: 'right' },
+    ]
+
+    function makeHandler(side) {
+      return function onPointerDown(e) {
+        e.stopPropagation()
+        e.preventDefault()
+        const startX    = e.clientX
+        const origStart = parseDate(item.start)
+        const origEnd   = parseDate(item.end)
+
+        function onMove(mv) {
+          const delta = Math.round((mv.clientX - startX) / DAY_WIDTH)
+          if (side === 'right') {
+            const ne = addDays(origEnd, delta)
+            if (ne >= origStart) onResize(item.id, null, ne)
+          } else {
+            const ns = addDays(origStart, delta)
+            if (ns <= origEnd) onResize(item.id, ns, null)
+          }
+        }
+        function onUp() {
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onUp)
+        }
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', onUp)
       }
     }
-    function onUp() {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+
+    const handlers = []
+    for (const { el, side } of grips) {
+      if (!el) continue
+      const handler = makeHandler(side)
+      el.addEventListener('pointerdown', handler, { capture: true })
+      handlers.push({ el, handler })
     }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
+    return () => {
+      for (const { el, handler } of handlers) {
+        el.removeEventListener('pointerdown', handler, { capture: true })
+      }
+    }
+  }, [item.start, item.end, item.id])
 
   return (
     <div
-      className="draggable-item"
+      className={`act-wrap${isSelected ? ' is-selected' : ''}`}
       ref={setNodeRef}
       onClick={e => { e.stopPropagation(); if (!isDragging) onSelect(item.id) }}
-      style={{ left:leftPx, top, width:widthPx, height:52, touchAction:'none', zIndex: isDragging ? 1 : 2 }}
+      style={{ left:leftPx, top, width:widthPx, height:52, touchAction:'none', zIndex: isDragging ? 1 : isSelected ? 10 : 2 }}
     >
-      {/* Left grip — NOT inside dnd-kit listeners */}
-      <div className="resize-grip resize-grip-left" onMouseDown={e => startResize(e, 'left')}>
-        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
-        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
+      {/* Left resize grip — native capture listener */}
+      <div ref={leftGripRef} className="resize-grip resize-grip-left" style={{ cursor:'ew-resize' }}>
+        <div className="resize-grip-bar" /><div className="resize-grip-bar" />
       </div>
 
-      {/* Drag zone — dnd-kit listeners on inner div only */}
+      {/* dnd-kit drag zone — inner div only */}
       <div {...listeners} {...attributes} style={{ position:'absolute', inset:0 }}>
         <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
       </div>
 
-      {/* Right grip */}
-      <div className="resize-grip resize-grip-right" onMouseDown={e => startResize(e, 'right')}>
-        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
-        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
+      {/* Right resize grip */}
+      <div ref={rightGripRef} className="resize-grip resize-grip-right" style={{ cursor:'ew-resize' }}>
+        <div className="resize-grip-bar" /><div className="resize-grip-bar" />
       </div>
     </div>
   )
 }
 
-// ── Draggable milestone line ──────────────────────────────────────────────────
+// ── Milestone line ────────────────────────────────────────────────────────────
 function DraggableMilestoneLine({ milestone, lineLeft, onEdit }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `milestone-${milestone.id}`,
@@ -210,8 +298,8 @@ function DraggableMilestoneLine({ milestone, lineLeft, onEdit }) {
       ref={setNodeRef} {...listeners} {...attributes}
       title={milestone.title} onClick={onEdit}
       style={{ position:'absolute', top:0, left:lineLeft-3, width:6, height:'100%', background: isDragging ? 'rgba(190,18,60,0.1)' : 'rgba(190,18,60,0.3)', zIndex:1, cursor:'grab', touchAction:'none', transition:'background 0.15s' }}
-      onMouseEnter={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.6)' }}
-      onMouseLeave={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.3)' }}
+      onMouseEnter={e => { if (!isDragging) e.currentTarget.style.background='rgba(190,18,60,0.6)' }}
+      onMouseLeave={e => { if (!isDragging) e.currentTarget.style.background='rgba(190,18,60,0.3)' }}
     />
   )
 }
@@ -232,15 +320,13 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   const [overChannelId,   setOverChannelId]   = useState(null)
   const [scrollLeft,      setScrollLeft]      = useState(0)
 
-  // Milestone form state
-  const [milestoneForm,     setMilestoneForm]     = useState(false)
-  const [mTitle,            setMTitle]            = useState('')
-  const [mDate,             setMDate]             = useState('')
-  const [editingMilestone,  setEditingMilestone]  = useState(null)
-  const [editTitle,         setEditTitle]         = useState('')
-  const [editDate,          setEditDate]          = useState('')
+  const [milestoneForm,    setMilestoneForm]    = useState(false)
+  const [mTitle,           setMTitle]           = useState('')
+  const [mDate,            setMDate]            = useState('')
+  const [editingMilestone, setEditingMilestone] = useState(null)
+  const [editTitle,        setEditTitle]        = useState('')
+  const [editDate,         setEditDate]         = useState('')
 
-  // viewDays — use ref to avoid stale closures in scroll handler
   const viewDaysRef = useRef(365)
   const [viewDays, setViewDaysState] = useState(365)
   function setViewDays(n) { viewDaysRef.current = n; setViewDaysState(n) }
@@ -253,7 +339,6 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   const days       = Array.from({ length: viewDays }, (_, i) => addDays(viewStart, i))
   const totalWidth = LABEL_WIDTH + viewDays * DAY_WIDTH
 
-  // Scroll to today on mount
   useEffect(() => {
     if (!wrapRef.current || scrollInit.current) return
     scrollInit.current = true
@@ -264,14 +349,12 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
     })
   }, [])
 
-  // Today button
   useEffect(() => {
     if (!scrollToToday || !wrapRef.current) return
     const offset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
     wrapRef.current.scrollLeft = Math.max(0, offset * DAY_WIDTH - DAY_WIDTH * 2)
   }, [scrollToToday])
 
-  // Infinite scroll
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
@@ -279,9 +362,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
       setScrollLeft(wrap.scrollLeft)
       const fromRight = wrap.scrollWidth - wrap.scrollLeft - wrap.clientWidth
       const fromLeft  = wrap.scrollLeft
-      if (fromRight < DAY_WIDTH * 30) {
-        setViewDays(viewDaysRef.current + 180)
-      }
+      if (fromRight < DAY_WIDTH * 30) setViewDays(viewDaysRef.current + 180)
       if (fromLeft < DAY_WIDTH * 30 && !scrollLock.current) {
         scrollLock.current = true
         const added = 90
@@ -347,7 +428,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
       <style>{STYLES}</style>
       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-        {/* ── Milestone bar ── */}
+        {/* Milestone bar */}
         <div
           style={{ position:'relative', background:'#fff', borderBottom:'1px solid var(--line)', flexShrink:0, height:40, display:'flex', alignItems:'center', cursor: milestoneForm ? 'default' : 'pointer' }}
           onClick={() => { if (!milestoneForm) setMilestoneForm(true) }}
@@ -367,9 +448,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                   style={{ position:'absolute', left:x, top:'50%', transform:'translate(-50%,-50%)', display:'inline-flex', alignItems:'center', gap:4, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'2px 9px', fontSize:11, fontWeight:700, color:'#be123c', cursor:'pointer', whiteSpace:'nowrap', zIndex:2 }}
                   onMouseEnter={e => e.currentTarget.style.background='#ffe4e6'}
                   onMouseLeave={e => e.currentTarget.style.background='#fff1f2'}
-                >
-                  🚩 {m.title}
-                </span>
+                >🚩 {m.title}</span>
               )
             })}
           </div>
@@ -383,7 +462,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
           )}
         </div>
 
-        {/* ── Calendar scroll area ── */}
+        {/* Calendar scroll area */}
         <div ref={wrapRef} style={{ flex:1, minHeight:0, overflowX:'auto', overflowY:'auto', paddingBottom:24 }}>
           <div style={{ width:totalWidth, position:'relative' }}>
 
@@ -394,11 +473,11 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                 const today   = isToday(day)
                 const weekend = isWeekend(day)
                 return (
-                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? 'var(--accent-bg)' : weekend ? '#f0f1f5' : undefined }}>
-                    <span style={{ fontSize:10, fontWeight:600, color: today ? 'var(--accent)' : weekend ? '#9099b0' : 'var(--muted)', whiteSpace:'nowrap' }}>
+                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? 'var(--accent-bg)' : weekend ? '#ededf2' : undefined }}>
+                    <span style={{ fontSize:10, fontWeight:600, color: today ? 'var(--accent)' : weekend ? '#8890a8' : 'var(--muted)', whiteSpace:'nowrap' }}>
                       {day.toLocaleDateString('en-GB', { month:'short' })} {day.getDate()}
                     </span>
-                    <span style={{ fontSize:10, fontWeight:700, color: today ? 'var(--accent)' : weekend ? '#9099b0' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em' }}>
+                    <span style={{ fontSize:10, fontWeight:700, color: today ? 'var(--accent)' : weekend ? '#8890a8' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em' }}>
                       {day.toLocaleDateString('en-GB', { weekday:'short' })}
                     </span>
                   </div>
@@ -406,7 +485,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
               })}
             </div>
 
-            {/* Lane rows */}
+            {/* Lanes */}
             {filteredChannels.map(ch => {
               const items     = layoutItems(visible.filter(it => it.channel === ch.id))
               const maxRow    = items.reduce((m, it) => Math.max(m, it.layoutRow || 0), 0)
@@ -416,7 +495,6 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
               return (
                 <LaneDropZone key={ch.id} channelId={ch.id}>
                   <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px 1fr`, minHeight:rowHeight, borderBottom:'1px solid var(--line)' }}>
-                    {/* Channel label */}
                     <div style={{ position:'sticky', left:0, zIndex:50, background: isOver ? `${ch.color}10` : '#fff', borderRight:'1px solid var(--line)', padding:'12px 14px', display:'flex', flexDirection:'column', justifyContent:'center', gap:3, transition:'background 0.15s' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:7 }}>
                         <span style={{ width:8, height:8, borderRadius:'50%', background:ch.color, flexShrink:0, display:'inline-block' }} />
@@ -424,22 +502,17 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                       </div>
                       <span style={{ fontSize:11, color:'var(--muted)', paddingLeft:15 }}>{items.length} activities</span>
                     </div>
-
-                    {/* Activity lane */}
                     <div
-                      style={{ position:'relative', minHeight:rowHeight, backgroundImage:'repeating-linear-gradient(to right,transparent 0,transparent calc(100% / ' + viewDays + ' - 0.5px),var(--line) calc(100% / ' + viewDays + ' - 0.5px),var(--line) calc(100% / ' + viewDays + '))', backgroundColor: isOver ? `${ch.color}0c` : undefined, outline: isOver ? `2px dashed ${ch.color}60` : 'none', outlineOffset:-2, transition:'background-color 0.1s', cursor:'crosshair' }}
+                      style={{ position:'relative', minHeight:rowHeight, backgroundImage:`repeating-linear-gradient(to right,transparent 0,transparent ${DAY_WIDTH-1}px,var(--line) ${DAY_WIDTH-1}px,var(--line) ${DAY_WIDTH}px)`, backgroundColor: isOver ? `${ch.color}0c` : undefined, outline: isOver ? `2px dashed ${ch.color}60` : 'none', outlineOffset:-2, transition:'background-color 0.1s', cursor:'crosshair' }}
                       onClick={e => handleLaneClick(e, ch.id)}
                     >
-                      {/* Today + weekend shading */}
                       {days.map((day, idx) =>
                         isToday(day)
                           ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'var(--accent-bg)', opacity:0.4, pointerEvents:'none', zIndex:0 }} />
                           : isWeekend(day)
-                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#eeeef4', pointerEvents:'none', zIndex:0 }} />
+                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#eeeef3', pointerEvents:'none', zIndex:0 }} />
                           : null
                       )}
-
-                      {/* Milestone lines */}
                       {milestones.map(m => {
                         const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
                         if (offset < 0 || offset >= viewDays) return null
@@ -450,8 +523,6 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                           />
                         )
                       })}
-
-                      {/* Activities */}
                       {items.map(item => (
                         <DraggableItem key={item.id} item={item} channels={channels} calendars={calendars} viewStart={viewStart} selectedId={selectedId} onSelect={onSelectCampaign} onResize={handleResize} />
                       ))}
@@ -464,7 +535,6 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
         </div>
       </div>
 
-      {/* Drag overlays */}
       <DragOverlay dropAnimation={null}>
         {activeItem ? (
           <ActivityBlock item={activeItem} channels={channels} selectedId={null} isOverlay isDragging={false} />
