@@ -394,12 +394,12 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                 const today   = isToday(day)
                 const weekend = isWeekend(day)
                 return (
-                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? 'var(--accent-bg)' : weekend ? '#f0f2f5' : undefined }}>
-                    <span style={{ fontSize:9, fontWeight:700, color: today ? 'var(--accent)' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.04em' }}>
-                      {day.toLocaleDateString('en-GB', { month:'short' })}
+                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? 'var(--accent-bg)' : weekend ? '#f0f1f5' : undefined }}>
+                    <span style={{ fontSize:10, fontWeight:600, color: today ? 'var(--accent)' : weekend ? '#9099b0' : 'var(--muted)', whiteSpace:'nowrap' }}>
+                      {day.toLocaleDateString('en-GB', { month:'short' })} {day.getDate()}
                     </span>
-                    <span style={{ fontSize:11, fontWeight: today ? 700 : 500, color: today ? 'var(--accent)' : weekend ? 'var(--muted)' : 'var(--ink)' }}>
-                      {day.toLocaleDateString('en-GB', { weekday:'short' }).slice(0,1)}{day.getDate()}
+                    <span style={{ fontSize:10, fontWeight:700, color: today ? 'var(--accent)' : weekend ? '#9099b0' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em' }}>
+                      {day.toLocaleDateString('en-GB', { weekday:'short' })}
                     </span>
                   </div>
                 )
@@ -435,7 +435,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                         isToday(day)
                           ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'var(--accent-bg)', opacity:0.4, pointerEvents:'none', zIndex:0 }} />
                           : isWeekend(day)
-                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f5f6f8', pointerEvents:'none', zIndex:0 }} />
+                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#eeeef4', pointerEvents:'none', zIndex:0 }} />
                           : null
                       )}
 
