@@ -29,150 +29,120 @@ function getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search
   )
 }
 
-const HOVER_STYLES = `
+const STYLES = `
   .activity-block {
-    transition: box-shadow 0.2s, width 0.2s ease, transform 0.15s ease;
+    transition: box-shadow 0.15s, transform 0.15s;
   }
-  .activity-block:not(.is-dragging):not(.is-overlay):not(.no-expand):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 30px rgba(20,24,38,0.18) !important;
-    min-width: var(--hover-w) !important;
-    width: var(--hover-w) !important;
-    overflow: visible !important;
+  .activity-block:not(.is-dragging):not(.is-overlay):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99,102,241,0.15) !important;
     z-index: 999 !important;
   }
-  .activity-block.no-expand:not(.is-dragging):not(.is-overlay):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 30px rgba(20,24,38,0.18) !important;
-    z-index: 999 !important;
-  }
-  .activity-block:not(.is-dragging):not(.is-overlay):hover .activity-meta {
+  .activity-block:not(.is-dragging):not(.is-overlay):hover .act-meta {
     display: block !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
   }
-  .draggable-item:hover {
-    z-index: 999 !important;
-  }
+  .draggable-item { position: absolute; }
+  .draggable-item:hover { z-index: 50 !important; }
+
   .resize-grip {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 12px;
-    height: 32px;
-    background: #151927;
-    border-radius: 4px;
-    cursor: ew-resize;
-    z-index: 20;
+    width: 14px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 2px;
+    cursor: ew-resize;
+    z-index: 30;
     opacity: 0;
     transition: opacity 0.15s;
+    border-radius: 4px;
   }
-  .resize-grip-left  { left: -6px; }
-  .resize-grip-right { right: -6px; }
-  .draggable-item:hover .resize-grip {
-    opacity: 1;
+  .resize-grip-left  { left: -7px; }
+  .resize-grip-right { right: -7px; }
+  .resize-grip-bar {
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    background: #fff;
+    opacity: 0.9;
   }
+  .draggable-item:hover .resize-grip { opacity: 1; }
 `
 
+// ── Activity block (visual only, no drag logic) ──────────────────────────────
 function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay }) {
-  const ch = channels.find(c => c.id === item.channel) || channels[0]
-  const length    = daysBetween(item.start, item.end)
-  const isDone    = item.status === 'Done'
-  const isBlocked = item.status === 'Blocked'
-  const colour    = isDone ? '#cbd5e1' : isBlocked ? '#ef4444' : ch?.color || '#94a3b8'
-  const bg        = isDone ? '#f3f4f6' : isBlocked ? '#fff1f2' : '#fff'
-  const textCol   = isDone ? '#6b7280' : '#172033'
-  const isShort   = length <= 2
-  const hasLink   = !!item.linked_calendar_id
+  const ch      = channels.find(c => c.id === item.channel) || channels[0]
+  const len     = daysBetween(item.start, item.end)
+  const isDone  = item.status === 'Done'
+  const isBlock = item.status === 'Blocked'
+  const accent  = isDone ? '#94a3b8' : isBlock ? '#ef4444' : (ch?.color || '#6366f1')
+  const hasLink = !!item.linked_calendar_id
+  const isShort = len <= 1
 
-  const titleLen = String(item.title || 'Untitled activity').length
-  const metaLen  = String(`${item.owner} • ${item.status} • ${item.category} • ${item.priority}`).length
-  const hoverW   = Math.min(620, Math.max(280, Math.max(titleLen, metaLen) * 8 + 120))
-  const widthPx  = Math.max(DAY_WIDTH, length * DAY_WIDTH)
+  // Tinted background from channel colour
+  const bgAlpha = isDone ? '#f3f4f6' : isBlock ? '#fff1f2' : `${accent}12`
+  const textCol = isDone ? '#6b7280' : '#1a1a2e'
 
-  const classes = [
-    'activity-block',
-    isDragging        ? 'is-dragging' : '',
-    isOverlay         ? 'is-overlay'  : '',
-    widthPx >= hoverW ? 'no-expand'   : '',
-  ].filter(Boolean).join(' ')
-
-  function openLinkedCalendar(e) {
+  function openLink(e) {
     e.stopPropagation()
-    const url = `${window.location.origin}${window.location.pathname}#calendar=${item.linked_calendar_id}`
-    window.open(url, '_blank')
+    window.open(`${window.location.origin}${window.location.pathname}#calendar=${item.linked_calendar_id}`, '_blank')
   }
 
   return (
     <div
-      className={classes}
+      className={['activity-block', isDragging ? 'is-dragging' : '', isOverlay ? 'is-overlay' : ''].filter(Boolean).join(' ')}
       style={{
-        width: isOverlay ? Math.max(200, widthPx) : '100%',
-        height: 62,
-        background: bg,
-        border: `1px solid ${isDragging ? colour : '#e1e5ef'}`,
-        borderRadius: 12,
-        padding: '10px 36px 10px 22px',
-        boxShadow: isDragging ? 'none' : isOverlay ? '0 18px 42px rgba(20,24,38,0.28)' : '0 8px 24px rgba(20,24,38,0.1)',
+        width: '100%', height: 52,
+        background: bgAlpha,
+        border: `1.5px solid ${accent}40`,
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: 8,
+        padding: isShort ? '6px 8px' : '6px 28px 6px 10px',
         display: 'flex', alignItems: 'center', overflow: 'hidden',
         color: textCol,
-        opacity: isDragging ? 0.3 : 1,
-        outline: !isDragging && !isOverlay && selectedId === item.id ? '4px solid #e8ebf5' : 'none',
+        opacity: isDragging ? 0.35 : 1,
+        outline: !isDragging && !isOverlay && selectedId === item.id ? `2px solid ${accent}` : 'none',
+        outlineOffset: 1,
         position: 'relative',
         cursor: isOverlay ? 'grabbing' : 'grab',
-        '--hover-w': hoverW + 'px',
-        zIndex: isDragging ? 0 : 2,
+        boxShadow: isOverlay ? '0 12px 32px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
+        userSelect: 'none',
       }}
     >
-      <div style={{ position:'absolute', left:0, top:0, width:6, height:'100%', background:colour, borderRadius:'12px 0 0 12px', opacity:0.9 }} />
-      {!isShort ? (
-        <div style={{ position:'relative', zIndex:5, width:'100%', minWidth:0 }}>
-          <div style={{ fontWeight:900, lineHeight:1.15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {item.title || 'Untitled activity'}
-            {hasLink && <span style={{ marginLeft:6, fontSize:10, background:'#ede9fe', color:'#7c3aed', borderRadius:4, padding:'1px 5px', fontWeight:800, verticalAlign:'middle' }}>📅</span>}
-          </div>
-          <div className="activity-meta" style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {item.owner} • {item.status} • {CATEGORY_ICONS[item.category] || '📦'} {item.category} • {item.priority}
-          </div>
+      <div style={{ minWidth:0, flex:1 }}>
+        <div style={{ fontSize:12, fontWeight:700, lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+          {item.title || 'Untitled'}
+          {hasLink && <span style={{ marginLeft:5, fontSize:9, background:'var(--accent-bg)', color:'var(--accent-txt)', borderRadius:3, padding:'1px 4px', fontWeight:700, verticalAlign:'middle' }}>↗</span>}
         </div>
-      ) : (
-        <div style={{ position:'relative', zIndex:5, width:'100%', minWidth:0 }}>
-          <div className="short-title" style={{ fontWeight:900, lineHeight:1.15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {item.title || 'Untitled activity'}
-            {hasLink && <span style={{ marginLeft:6, fontSize:10, background:'#ede9fe', color:'#7c3aed', borderRadius:4, padding:'1px 5px', fontWeight:800, verticalAlign:'middle' }}>📅</span>}
+        {!isShort && (
+          <div className="act-meta" style={{ fontSize:10, color:'var(--muted)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {item.owner} · {item.status} · {item.priority}
           </div>
-          <div className="activity-meta short-meta" style={{ color:'var(--muted)', fontSize:11, marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'none' }}>
-            {item.owner} • {item.status} • {CATEGORY_ICONS[item.category] || '📦'} {item.category} • {item.priority}
-          </div>
-        </div>
-      )}
-      {/* Status icon or link button */}
+        )}
+      </div>
       {hasLink && !isDragging && !isOverlay ? (
-        <span
-          title="Open planning calendar"
-          onClick={openLinkedCalendar}
-          style={{ position:'absolute', right:10, bottom:8, width:18, height:18, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:11, background:'#ede9fe', color:'#7c3aed', zIndex:6, cursor:'pointer' }}
-        >→</span>
-      ) : (
-        <span style={{ position:'absolute', right:10, bottom:8, width:18, height:18, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:12, background:'var(--soft)', zIndex:6 }}>
-          {STATUS_ICONS[item.status] || '📌'}
+        <span onClick={openLink} title="Open planning calendar"
+          style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', width:16, height:16, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:9, background:'var(--accent-bg)', color:'var(--accent)', cursor:'pointer', zIndex:6 }}>→</span>
+      ) : !isShort ? (
+        <span style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', fontSize:11, zIndex:6, opacity:0.6 }}>
+          {STATUS_ICONS[item.status] || '·'}
         </span>
-      )}
+      ) : null}
     </div>
   )
 }
 
-function DraggableItem({ item, channels, calendars, viewStart, viewDays, selectedId, onSelect, onResize }) {
+// ── Draggable wrapper + resize grips ─────────────────────────────────────────
+function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSelect, onResize }) {
   const offset  = Math.round((parseDate(item.start) - viewStart) / 86400000)
   const leftPx  = Math.max(0, offset) * DAY_WIDTH
-  const top     = 12 + (item.layoutRow || 0) * 68
-  const widthPx = Math.max(DAY_WIDTH, daysBetween(item.start, item.end) * DAY_WIDTH)
+  const top     = 10 + (item.layoutRow || 0) * 62
+  const widthPx = Math.max(DAY_WIDTH - 4, daysBetween(item.start, item.end) * DAY_WIDTH - 4)
 
+  // Use delay activation — gives mousedown 150ms to fire on resize grips before dnd-kit claims it
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: String(item.id),
     data: { item },
@@ -184,14 +154,14 @@ function DraggableItem({ item, channels, calendars, viewStart, viewDays, selecte
     const startX    = e.clientX
     const origStart = parseDate(item.start)
     const origEnd   = parseDate(item.end)
-    function onMove(e) {
-      const dayDelta = Math.round((e.clientX - startX) / DAY_WIDTH)
+    function onMove(mv) {
+      const delta = Math.round((mv.clientX - startX) / DAY_WIDTH)
       if (side === 'right') {
-        const newEnd = addDays(origEnd, dayDelta)
-        if (newEnd >= origStart) onResize(item.id, null, newEnd)
+        const ne = addDays(origEnd, delta)
+        if (ne >= origStart) onResize(item.id, null, ne)
       } else {
-        const newStart = addDays(origStart, dayDelta)
-        if (newStart <= origEnd) onResize(item.id, newStart, null)
+        const ns = addDays(origStart, delta)
+        if (ns <= origEnd) onResize(item.id, ns, null)
       }
     }
     function onUp() {
@@ -204,31 +174,32 @@ function DraggableItem({ item, channels, calendars, viewStart, viewDays, selecte
 
   return (
     <div
-      ref={setNodeRef}
       className="draggable-item"
+      ref={setNodeRef}
       onClick={e => { e.stopPropagation(); if (!isDragging) onSelect(item.id) }}
-      style={{ position:'absolute', left:leftPx, top, width:widthPx, height:62, touchAction:'none', zIndex: isDragging ? 0 : 2 }}
+      style={{ left:leftPx, top, width:widthPx, height:52, touchAction:'none', zIndex: isDragging ? 1 : 2 }}
     >
-      {/* Left resize grip — CSS hover shows it, outside dnd-kit listeners */}
+      {/* Left grip — NOT inside dnd-kit listeners */}
       <div className="resize-grip resize-grip-left" onMouseDown={e => startResize(e, 'left')}>
-        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
-        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
+        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
+        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
       </div>
 
-      {/* dnd-kit drag zone */}
-      <div {...listeners} {...attributes} style={{ position:'absolute', inset:0, cursor: isDragging ? 'grabbing' : 'grab' }}>
+      {/* Drag zone — dnd-kit listeners on inner div only */}
+      <div {...listeners} {...attributes} style={{ position:'absolute', inset:0 }}>
         <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
       </div>
 
-      {/* Right resize grip */}
+      {/* Right grip */}
       <div className="resize-grip resize-grip-right" onMouseDown={e => startResize(e, 'right')}>
-        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
-        <div style={{ width:2, height:12, background:'#fff', borderRadius:1, opacity:0.8 }} />
+        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
+        <div className="resize-grip-bar" style={{ background: isDragging ? 'transparent' : '#6366f1' }} />
       </div>
     </div>
   )
 }
 
+// ── Draggable milestone line ──────────────────────────────────────────────────
 function DraggableMilestoneLine({ milestone, lineLeft, onEdit }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `milestone-${milestone.id}`,
@@ -236,25 +207,11 @@ function DraggableMilestoneLine({ milestone, lineLeft, onEdit }) {
   })
   return (
     <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      title={milestone.title}
-      onClick={onEdit}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: lineLeft - 3,
-        width: 6,
-        height: '100%',
-        background: isDragging ? 'rgba(190,18,60,0.15)' : 'rgba(190,18,60,0.35)',
-        zIndex: 1,
-        cursor: 'grab',
-        transition: 'background 0.15s',
-        touchAction: 'none',
-      }}
+      ref={setNodeRef} {...listeners} {...attributes}
+      title={milestone.title} onClick={onEdit}
+      style={{ position:'absolute', top:0, left:lineLeft-3, width:6, height:'100%', background: isDragging ? 'rgba(190,18,60,0.1)' : 'rgba(190,18,60,0.3)', zIndex:1, cursor:'grab', touchAction:'none', transition:'background 0.15s' }}
       onMouseEnter={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.6)' }}
-      onMouseLeave={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.35)' }}
+      onMouseLeave={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(190,18,60,0.3)' }}
     />
   )
 }
@@ -264,71 +221,68 @@ function LaneDropZone({ channelId, children }) {
   return <div ref={setNodeRef}>{children}</div>
 }
 
+// ── Main Timeline ─────────────────────────────────────────────────────────────
 export default function Timeline({ channels, campaigns, calendars = [], viewStart, setViewStart, channelFilter, categoryFilter, tierFilter, search, selectedId, onSelectCampaign, onAddAtDate, onMoveCampaign, onUpdateCampaign, scrollToToday, milestones = [], onAddMilestone, onUpdateMilestone, onDeleteMilestone }) {
   const wrapRef    = useRef(null)
   const scrollLock = useRef(false)
   const scrollInit = useRef(false)
-  const [activeItem,       setActiveItem]       = useState(null)
-  const [activeMilestone,  setActiveMilestone]  = useState(null)
-  const [overChannelId,    setOverChannelId]    = useState(null)
-  const [milestoneForm, setMilestoneForm] = useState(false)
-  const [mTitle, setMTitle] = useState('')
-  const [mDate,  setMDate]  = useState('')
-  const [scrollLeft, setScrollLeft] = useState(0)
-  const [editingMilestone, setEditingMilestone] = useState(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editDate,  setEditDate]  = useState('')
+
+  const [activeItem,      setActiveItem]      = useState(null)
+  const [activeMilestone, setActiveMilestone] = useState(null)
+  const [overChannelId,   setOverChannelId]   = useState(null)
+  const [scrollLeft,      setScrollLeft]      = useState(0)
+
+  // Milestone form state
+  const [milestoneForm,     setMilestoneForm]     = useState(false)
+  const [mTitle,            setMTitle]            = useState('')
+  const [mDate,             setMDate]             = useState('')
+  const [editingMilestone,  setEditingMilestone]  = useState(null)
+  const [editTitle,         setEditTitle]         = useState('')
+  const [editDate,          setEditDate]          = useState('')
+
+  // viewDays — use ref to avoid stale closures in scroll handler
+  const viewDaysRef = useRef(365)
+  const [viewDays, setViewDaysState] = useState(365)
+  function setViewDays(n) { viewDaysRef.current = n; setViewDaysState(n) }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
-  const viewDaysRef = useRef(365)
-  const [viewDays, setViewDaysState] = useState(365)
-  function setViewDays(n) {
-    viewDaysRef.current = n
-    setViewDaysState(n)
-  }
-
   const visible    = getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search)
   const days       = Array.from({ length: viewDays }, (_, i) => addDays(viewStart, i))
   const totalWidth = LABEL_WIDTH + viewDays * DAY_WIDTH
 
-  // On mount: scroll so today is near the left edge
+  // Scroll to today on mount
   useEffect(() => {
     if (!wrapRef.current || scrollInit.current) return
     scrollInit.current = true
     requestAnimationFrame(() => {
       if (!wrapRef.current) return
-      const todayOffset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
-      wrapRef.current.scrollLeft = Math.max(0, todayOffset * DAY_WIDTH - DAY_WIDTH * 3)
+      const offset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
+      wrapRef.current.scrollLeft = Math.max(0, offset * DAY_WIDTH - DAY_WIDTH * 3)
     })
   }, [])
 
-  // Today button: scroll to today
+  // Today button
   useEffect(() => {
     if (!scrollToToday || !wrapRef.current) return
-    const wrap = wrapRef.current
-    const todayOffset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
-    wrap.scrollLeft = Math.max(0, todayOffset * DAY_WIDTH - DAY_WIDTH * 2)
+    const offset = Math.round((new Date().setHours(0,0,0,0) - new Date(viewStart).setHours(0,0,0,0)) / 86400000)
+    wrapRef.current.scrollLeft = Math.max(0, offset * DAY_WIDTH - DAY_WIDTH * 2)
   }, [scrollToToday])
 
-  // Infinite scroll — expand right and left as needed
+  // Infinite scroll
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
     function onScroll() {
       setScrollLeft(wrap.scrollLeft)
-      const distFromRight = wrap.scrollWidth - wrap.scrollLeft - wrap.clientWidth
-      const distFromLeft  = wrap.scrollLeft
-
-      // Expand right — just add more days, no scroll jump needed
-      if (distFromRight < DAY_WIDTH * 30) {
+      const fromRight = wrap.scrollWidth - wrap.scrollLeft - wrap.clientWidth
+      const fromLeft  = wrap.scrollLeft
+      if (fromRight < DAY_WIDTH * 30) {
         setViewDays(viewDaysRef.current + 180)
       }
-
-      // Expand left — prepend days and compensate scroll position so view doesn't jump
-      if (distFromLeft < DAY_WIDTH * 30 && !scrollLock.current) {
+      if (fromLeft < DAY_WIDTH * 30 && !scrollLock.current) {
         scrollLock.current = true
         const added = 90
         setViewStart(d => addDays(d, -added))
@@ -346,51 +300,37 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   function handleResize(id, newStart, newEnd) {
     const item = campaigns.find(c => c.id === id)
     if (!item) return
-    onUpdateCampaign(id, {
-      start: newStart ? fmtDate(newStart) : item.start,
-      end:   newEnd   ? fmtDate(newEnd)   : item.end,
-    })
+    onUpdateCampaign(id, { start: newStart ? fmtDate(newStart) : item.start, end: newEnd ? fmtDate(newEnd) : item.end })
   }
 
   function handleDragStart({ active }) {
-    if (active.data.current?.type === 'milestone') {
-      setActiveMilestone(active.data.current.milestone)
-      return
-    }
+    if (active.data.current?.type === 'milestone') { setActiveMilestone(active.data.current.milestone); return }
     setActiveItem(active.data.current.item)
     setOverChannelId(active.data.current.item.channel)
   }
 
   function handleDragOver({ over }) {
-    const channelId = over?.data?.current?.channelId
-    if (channelId) setOverChannelId(channelId)
+    const ch = over?.data?.current?.channelId
+    if (ch) setOverChannelId(ch)
   }
 
   function handleDragEnd({ active, delta, over }) {
-    setActiveItem(null)
-    setActiveMilestone(null)
+    setActiveItem(null); setActiveMilestone(null)
     if (!active) return
-
-    // Milestone drag — horizontal only, updates date
     if (active.data.current?.type === 'milestone') {
       const m = active.data.current.milestone
-      const dayDelta = Math.round(delta.x / DAY_WIDTH)
-      if (dayDelta !== 0) {
-        const newDate = addDays(parseDate(m.date), dayDelta)
-        onUpdateMilestone(m.id, m.title, fmtDate(newDate))
-      }
+      const d = Math.round(delta.x / DAY_WIDTH)
+      if (d !== 0) onUpdateMilestone(m.id, m.title, fmtDate(addDays(parseDate(m.date), d)))
       return
     }
-
-    // Activity drag
     const item       = active.data.current.item
     const newChannel = over?.data?.current?.channelId || overChannelId || item.channel
     setOverChannelId(null)
-    const dayDelta   = Math.round(delta.x / DAY_WIDTH)
-    const dur        = daysBetween(item.start, item.end)
-    const newStart   = addDays(parseDate(item.start), dayDelta)
-    const newEnd     = addDays(newStart, dur - 1)
-    onMoveCampaign(item.id, newStart, newEnd, newChannel)
+    const d   = Math.round(delta.x / DAY_WIDTH)
+    const dur = daysBetween(item.start, item.end)
+    const ns  = addDays(parseDate(item.start), d)
+    const ne  = addDays(ns, dur - 1)
+    onMoveCampaign(item.id, ns, ne, newChannel)
   }
 
   function handleLaneClick(e, channelId) {
@@ -404,149 +344,132 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
 
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-      <style>{HOVER_STYLES}</style>
+      <style>{STYLES}</style>
       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-        {/* Milestone toolbar */}
+        {/* ── Milestone bar ── */}
         <div
-          style={{ position:'relative', background:'#fff', borderBottom:'1px solid var(--line)', flexShrink:0, height:44, display:'flex', alignItems:'center', cursor: milestoneForm ? 'default' : 'pointer' }}
+          style={{ position:'relative', background:'#fff', borderBottom:'1px solid var(--line)', flexShrink:0, height:40, display:'flex', alignItems:'center', cursor: milestoneForm ? 'default' : 'pointer' }}
           onClick={() => { if (!milestoneForm) setMilestoneForm(true) }}
         >
-          {/* Fixed left label */}
-          <span style={{ flexShrink:0, width: LABEL_WIDTH, paddingLeft:16, fontSize:11, fontWeight:900, color:'#8c93a3', textTransform:'uppercase', zIndex:3, background:'#fff', borderRight:'1px solid var(--line)', height:'100%', display:'flex', alignItems:'center' }}>
+          <span style={{ flexShrink:0, width:LABEL_WIDTH, paddingLeft:14, fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.05em', borderRight:'1px solid var(--line)', height:'100%', display:'flex', alignItems:'center' }}>
             Milestones
           </span>
-
-          {/* Scrolling area for pills */}
           <div style={{ flex:1, position:'relative', height:'100%', overflow:'hidden' }}>
             {!milestoneForm && milestones.map(m => {
               const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
-              const lineX  = offset * DAY_WIDTH + DAY_WIDTH / 2 - scrollLeft
-              if (lineX < -60 || lineX > (wrapRef.current?.clientWidth || 9999) + 60) return null
+              const x = offset * DAY_WIDTH + DAY_WIDTH / 2 - scrollLeft
+              if (x < -80 || x > (wrapRef.current?.clientWidth || 9999) + 80) return null
               return (
-                <span
-                  key={m.id}
-                  onClick={e => {
-                    e.stopPropagation()
-                    setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
-                    setEditTitle(m.title)
-                    setEditDate(m.date)
-                  }}
+                <span key={m.id}
+                  onClick={e => { e.stopPropagation(); setEditingMilestone({ id:m.id, x:e.clientX, y:e.clientY }); setEditTitle(m.title); setEditDate(m.date) }}
                   title={`${m.title} — ${m.date}`}
-                  style={{ position:'absolute', left: lineX, top:'50%', transform:'translate(-50%, -50%)', display:'inline-flex', alignItems:'center', gap:4, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#be123c', cursor:'pointer', whiteSpace:'nowrap', zIndex:2 }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#ffe4e6'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#fff1f2'}
+                  style={{ position:'absolute', left:x, top:'50%', transform:'translate(-50%,-50%)', display:'inline-flex', alignItems:'center', gap:4, background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:99, padding:'2px 9px', fontSize:11, fontWeight:700, color:'#be123c', cursor:'pointer', whiteSpace:'nowrap', zIndex:2 }}
+                  onMouseEnter={e => e.currentTarget.style.background='#ffe4e6'}
+                  onMouseLeave={e => e.currentTarget.style.background='#fff1f2'}
                 >
                   🚩 {m.title}
                 </span>
               )
             })}
           </div>
-
-          {/* Add form — floats over the right side when open */}
           {milestoneForm && (
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{ position:'absolute', right:16, top:'50%', transform:'translateY(-50%)', display:'flex', gap:6, alignItems:'center', background:'#fff', zIndex:4, padding:'0 4px' }}
-            >
-              <input placeholder="Title" value={mTitle} onChange={e => setMTitle(e.target.value)} autoFocus style={{ width:140, padding:'5px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
-              <input type="date" value={mDate} onChange={e => setMDate(e.target.value)} style={{ padding:'5px 8px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13, width:130 }} />
-              <button className="btn btn-primary" style={{ padding:'5px 12px', fontSize:12, whiteSpace:'nowrap' }} onClick={() => {
-                if (!mTitle.trim() || !mDate) return
-                onAddMilestone(mTitle.trim(), mDate)
-                setMTitle(''); setMDate(''); setMilestoneForm(false)
-              }}>Add</button>
-              <button className="btn btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={() => { setMilestoneForm(false); setMTitle(''); setMDate('') }}>✕</button>
+            <div onClick={e => e.stopPropagation()} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', display:'flex', gap:6, alignItems:'center', background:'#fff', zIndex:4 }}>
+              <input placeholder="Title" value={mTitle} onChange={e => setMTitle(e.target.value)} autoFocus style={{ width:130, padding:'5px 8px', borderRadius:7, border:'1px solid var(--line)', fontSize:12 }} />
+              <input type="date" value={mDate} onChange={e => setMDate(e.target.value)} style={{ padding:'5px 8px', borderRadius:7, border:'1px solid var(--line)', fontSize:12, width:128 }} />
+              <button className="btn btn-primary" style={{ padding:'5px 10px', fontSize:12 }} onClick={() => { if (!mTitle.trim() || !mDate) return; onAddMilestone(mTitle.trim(), mDate); setMTitle(''); setMDate(''); setMilestoneForm(false) }}>Add</button>
+              <button className="btn btn-secondary" style={{ padding:'5px 8px', fontSize:12 }} onClick={() => { setMilestoneForm(false); setMTitle(''); setMDate('') }}>✕</button>
             </div>
           )}
         </div>
 
-        <div ref={wrapRef} style={{ flex:1, minHeight:0, overflowX:'auto', overflowY:'auto', paddingRight:24, paddingBottom:24, position:'relative' }}>
-        <div style={{ background:'#fff', border:'1px solid var(--line)', borderRadius:'0 26px 26px 0', boxShadow:'0 12px 35px rgba(20,24,38,0.06)', width: totalWidth, position:'relative' }}>
+        {/* ── Calendar scroll area ── */}
+        <div ref={wrapRef} style={{ flex:1, minHeight:0, overflowX:'auto', overflowY:'auto', paddingBottom:24 }}>
+          <div style={{ width:totalWidth, position:'relative' }}>
 
-          {/* Header row */}
-          <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px repeat(${viewDays}, ${DAY_WIDTH}px)`, background:'#f7f8fb', borderBottom:'1px solid var(--line)', position:'sticky', top:0, zIndex:120 }}>
-            <div style={{ padding:'10px 8px', borderRight:'1px solid var(--line)', fontSize:12, fontWeight:900, color:'#667085', position:'sticky', left:0, zIndex:140, background:'#f7f8fb', boxShadow:'1px 0 0 var(--line)' }}>Channel</div>
-            {days.map((day, i) => {
-              const today   = isToday(day)
-              const weekend = isWeekend(day)
+            {/* Header */}
+            <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px repeat(${viewDays}, ${DAY_WIDTH}px)`, background:'var(--soft)', borderBottom:'1px solid var(--line)', position:'sticky', top:0, zIndex:120 }}>
+              <div style={{ padding:'8px 12px', borderRight:'1px solid var(--line)', fontSize:11, fontWeight:700, color:'var(--muted)', position:'sticky', left:0, zIndex:140, background:'var(--soft)', letterSpacing:'0.04em', textTransform:'uppercase' }}>Channel</div>
+              {days.map((day, i) => {
+                const today   = isToday(day)
+                const weekend = isWeekend(day)
+                return (
+                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? 'var(--accent-bg)' : weekend ? '#f0f2f5' : undefined }}>
+                    <span style={{ fontSize:9, fontWeight:700, color: today ? 'var(--accent)' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.04em' }}>
+                      {day.toLocaleDateString('en-GB', { month:'short' })}
+                    </span>
+                    <span style={{ fontSize:11, fontWeight: today ? 700 : 500, color: today ? 'var(--accent)' : weekend ? 'var(--muted)' : 'var(--ink)' }}>
+                      {day.toLocaleDateString('en-GB', { weekday:'short' }).slice(0,1)}{day.getDate()}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Lane rows */}
+            {filteredChannels.map(ch => {
+              const items     = layoutItems(visible.filter(it => it.channel === ch.id))
+              const maxRow    = items.reduce((m, it) => Math.max(m, it.layoutRow || 0), 0)
+              const rowHeight = Math.max(90, 16 + (maxRow + 1) * 62)
+              const isOver    = overChannelId === ch.id && !!activeItem
+
               return (
-                <div key={i} style={{ padding:'10px 8px', borderRight:'1px solid var(--line)', fontSize:12, whiteSpace:'nowrap', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? '#ede9fe' : weekend ? '#f1f3f7' : undefined, color: today ? '#5b21b6' : weekend ? '#9aa2b4' : undefined }}>
-                  <span style={{ display:'block', fontSize:10, fontWeight:800, marginBottom:2, color: today ? '#5b21b6' : '#98a2b3', minHeight:12 }}>{day.toLocaleDateString('en-GB', { month:'short' })}</span>
-                  <span><strong style={{ color: today ? '#5b21b6' : '#344054', marginRight:4 }}>{day.toLocaleDateString('en-GB', { weekday:'short' })}</strong>{day.getDate()}</span>
-                </div>
+                <LaneDropZone key={ch.id} channelId={ch.id}>
+                  <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px 1fr`, minHeight:rowHeight, borderBottom:'1px solid var(--line)' }}>
+                    {/* Channel label */}
+                    <div style={{ position:'sticky', left:0, zIndex:50, background: isOver ? `${ch.color}10` : '#fff', borderRight:'1px solid var(--line)', padding:'12px 14px', display:'flex', flexDirection:'column', justifyContent:'center', gap:3, transition:'background 0.15s' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                        <span style={{ width:8, height:8, borderRadius:'50%', background:ch.color, flexShrink:0, display:'inline-block' }} />
+                        <span style={{ fontSize:13, fontWeight:700, color:'var(--ink)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ch.name}</span>
+                      </div>
+                      <span style={{ fontSize:11, color:'var(--muted)', paddingLeft:15 }}>{items.length} activities</span>
+                    </div>
+
+                    {/* Activity lane */}
+                    <div
+                      style={{ position:'relative', minHeight:rowHeight, backgroundImage:'repeating-linear-gradient(to right,transparent 0,transparent calc(100% / ' + viewDays + ' - 0.5px),var(--line) calc(100% / ' + viewDays + ' - 0.5px),var(--line) calc(100% / ' + viewDays + '))', backgroundColor: isOver ? `${ch.color}0c` : undefined, outline: isOver ? `2px dashed ${ch.color}60` : 'none', outlineOffset:-2, transition:'background-color 0.1s', cursor:'crosshair' }}
+                      onClick={e => handleLaneClick(e, ch.id)}
+                    >
+                      {/* Today + weekend shading */}
+                      {days.map((day, idx) =>
+                        isToday(day)
+                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'var(--accent-bg)', opacity:0.4, pointerEvents:'none', zIndex:0 }} />
+                          : isWeekend(day)
+                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f5f6f8', pointerEvents:'none', zIndex:0 }} />
+                          : null
+                      )}
+
+                      {/* Milestone lines */}
+                      {milestones.map(m => {
+                        const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
+                        if (offset < 0 || offset >= viewDays) return null
+                        return (
+                          <DraggableMilestoneLine key={m.id} milestone={m}
+                            lineLeft={offset * DAY_WIDTH + DAY_WIDTH / 2}
+                            onEdit={e => { e.stopPropagation(); setEditingMilestone({ id:m.id, x:e.clientX, y:e.clientY }); setEditTitle(m.title); setEditDate(m.date) }}
+                          />
+                        )
+                      })}
+
+                      {/* Activities */}
+                      {items.map(item => (
+                        <DraggableItem key={item.id} item={item} channels={channels} calendars={calendars} viewStart={viewStart} selectedId={selectedId} onSelect={onSelectCampaign} onResize={handleResize} />
+                      ))}
+                    </div>
+                  </div>
+                </LaneDropZone>
               )
             })}
           </div>
-
-          {/* Lane rows */}
-          {filteredChannels.map(ch => {
-            const items     = layoutItems(visible.filter(it => it.channel === ch.id))
-            const maxRow    = items.reduce((m, it) => Math.max(m, it.layoutRow || 0), 0)
-            const rowHeight = Math.max(110, 28 + (maxRow + 1) * 74)
-            const isOver    = overChannelId === ch.id && !!activeItem
-
-            return (
-              <LaneDropZone key={ch.id} channelId={ch.id}>
-                <div style={{ display:'grid', gridTemplateColumns:`${LABEL_WIDTH}px 1fr`, minHeight: rowHeight, borderBottom:'1px solid var(--line)' }}>
-                  <div style={{ position:'sticky', left:0, zIndex:50, background: isOver ? `${ch.color}08` : '#fff', borderRight:'1px solid var(--line)', padding:18, fontWeight:900, boxShadow:'1px 0 0 var(--line)', minWidth: LABEL_WIDTH, transition:'background 0.15s' }}>
-                    <span className="dot" style={{ background: ch.color }} /> {ch.name}
-                    <small style={{ display:'block', marginTop:4, color:'#818898', fontWeight:650 }}>{items.length} planned</small>
-                  </div>
-                  <div
-                    style={{ position:'relative', minHeight: rowHeight, backgroundImage:'repeating-linear-gradient(to right,transparent 0,transparent 61px,var(--line) 61px,var(--line) 62px)', backgroundColor: isOver ? `${ch.color}18` : undefined, outline: isOver ? `2px dashed ${ch.color}88` : 'none', outlineOffset: -2, transition:'background-color 0.1s', cursor:'pointer' }}
-                    onClick={e => handleLaneClick(e, ch.id)}
-                  >
-                    {days.map((day, idx) =>
-                      isToday(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f5f3ff', pointerEvents:'none', zIndex:0 }} />
-                      : isWeekend(day) ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#f8fafc', pointerEvents:'none', zIndex:0 }} />
-                      : null
-                    )}
-                    {/* Milestone lines — below activities */}
-                    {milestones.map(m => {
-                      const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
-                      if (offset < 0 || offset >= viewDays) return null
-                      const lineLeft = offset * DAY_WIDTH + DAY_WIDTH / 2
-                      return (
-                        <DraggableMilestoneLine
-                          key={m.id}
-                          milestone={m}
-                          lineLeft={lineLeft}
-                          onEdit={(e) => {
-                            e.stopPropagation()
-                            setEditingMilestone({ id: m.id, x: e.clientX, y: e.clientY })
-                            setEditTitle(m.title)
-                            setEditDate(m.date)
-                          }}
-                        />
-                      )
-                    })}
-                    {items.map(item => (
-                      <DraggableItem key={item.id} item={item} channels={channels} calendars={calendars} viewStart={viewStart} viewDays={viewDays} selectedId={selectedId} onSelect={onSelectCampaign} onResize={handleResize} />
-                    ))}
-                  </div>
-                </div>
-              </LaneDropZone>
-            )
-          })}
         </div>
       </div>
-      </div>
 
+      {/* Drag overlays */}
       <DragOverlay dropAnimation={null}>
         {activeItem ? (
           <ActivityBlock item={activeItem} channels={channels} selectedId={null} isOverlay isDragging={false} />
         ) : activeMilestone ? (
-          <div style={{
-            width: 6,
-            height: '100vh',
-            background: 'rgba(190,18,60,0.6)',
-            borderRadius: 3,
-            boxShadow: '0 0 16px rgba(190,18,60,0.5)',
-            cursor: 'grabbing',
-            position: 'fixed',
-            top: 0,
-          }} />
+          <div style={{ width:6, height:'100vh', background:'rgba(190,18,60,0.5)', borderRadius:3, cursor:'grabbing', position:'fixed', top:0 }} />
         ) : null}
       </DragOverlay>
 
@@ -554,41 +477,22 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
       {editingMilestone && (
         <>
           <div onClick={() => setEditingMilestone(null)} style={{ position:'fixed', inset:0, zIndex:1000 }} />
-          <div style={{
-            position: 'fixed',
-            left: Math.min(editingMilestone.x, window.innerWidth - 260),
-            top: editingMilestone.y - 10,
-            transform: 'translateY(-100%)',
-            zIndex: 1001,
-            background: '#fff',
-            border: '1px solid #e4e7ee',
-            borderRadius: 16,
-            padding: 18,
-            width: 240,
-            boxShadow: '0 12px 40px rgba(20,24,38,0.16)',
-          }}>
+          <div style={{ position:'fixed', left:Math.min(editingMilestone.x, window.innerWidth-260), top:editingMilestone.y-10, transform:'translateY(-100%)', zIndex:1001, background:'#fff', border:'1px solid var(--line)', borderRadius:12, padding:16, width:240, boxShadow:'0 8px 32px rgba(0,0,0,0.12)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <strong style={{ fontSize:13 }}>Edit milestone</strong>
               <button onClick={() => setEditingMilestone(null)} className="btn-mini">✕</button>
             </div>
             <div style={{ marginBottom:10 }}>
-              <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:5 }}>Title</label>
-              <input value={editTitle} onChange={e => setEditTitle(e.target.value)} style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:5 }}>Title</div>
+              <input value={editTitle} onChange={e => setEditTitle(e.target.value)} />
             </div>
             <div style={{ marginBottom:14 }}>
-              <label style={{ display:'block', fontSize:11, fontWeight:900, color:'#7b8497', textTransform:'uppercase', marginBottom:5 }}>Date</label>
-              <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'1px solid #dfe3ec', fontSize:13 }} />
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:5 }}>Date</div>
+              <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              <button className="btn btn-primary" style={{ fontSize:13 }} onClick={() => {
-                if (!editTitle.trim() || !editDate) return
-                onUpdateMilestone(editingMilestone.id, editTitle.trim(), editDate)
-                setEditingMilestone(null)
-              }}>Save</button>
-              <button className="btn btn-danger" style={{ fontSize:13 }} onClick={() => {
-                onDeleteMilestone(editingMilestone.id)
-                setEditingMilestone(null)
-              }}>Delete</button>
+              <button className="btn btn-primary" style={{ fontSize:13 }} onClick={() => { if (!editTitle.trim() || !editDate) return; onUpdateMilestone(editingMilestone.id, editTitle.trim(), editDate); setEditingMilestone(null) }}>Save</button>
+              <button className="btn btn-danger" style={{ fontSize:13 }} onClick={() => { onDeleteMilestone(editingMilestone.id); setEditingMilestone(null) }}>Delete</button>
             </div>
           </div>
         </>
