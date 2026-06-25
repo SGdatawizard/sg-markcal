@@ -25,47 +25,34 @@ function CategoryDropdown({ selected, onChange }) {
     : `${selected.length} categories`
 
   return (
-    <div ref={ref} style={{ position:'relative' }}>
+    <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(v => !v)}
-        style={{ width:170, padding:'10px 12px', border:'1px solid #dfe3ec', borderRadius:13, background:'#fff', cursor:'pointer', textAlign:'left', fontSize:'inherit', display:'flex', justifyContent:'space-between', alignItems:'center', gap:6, fontFamily:'inherit' }}
+        style={{ padding:'7px 12px', border:'1px solid var(--line)', borderRadius:8, background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--ink)', whiteSpace:'nowrap', fontFamily:'inherit' }}
       >
-        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{label}</span>
-        <span style={{ color:'#8c93a3', flexShrink:0, fontSize:11 }}>▾</span>
+        <span>{label}</span>
+        <span style={{ color:'var(--muted)', fontSize:10 }}>▾</span>
       </button>
-
       {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, width:210, background:'#fff', border:'1px solid #e4e7ee', borderRadius:14, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:300, padding:8, overflow:'hidden' }}>
-          {/* All categories option */}
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, width:210, background:'#fff', border:'1px solid var(--line)', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.08)', zIndex:300, padding:6 }}>
           <button
             onClick={() => { onChange([]); setOpen(false) }}
-            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 10px', border:'none', background: selected.length === 0 ? '#f0f2f7' : '#fff', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight: selected.length === 0 ? 800 : 600, textAlign:'left' }}
+            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 10px', border:'none', background: selected.length === 0 ? 'var(--accent-bg)' : '#fff', borderRadius:7, cursor:'pointer', fontSize:13, color: selected.length === 0 ? 'var(--accent-txt)' : 'var(--ink)', fontWeight: selected.length === 0 ? 700 : 400, textAlign:'left' }}
           >
             All categories
-            {selected.length === 0 && <span style={{ marginLeft:'auto', color:'#7c3aed', fontSize:12 }}>✓</span>}
+            {selected.length === 0 && <span style={{ marginLeft:'auto', fontSize:12 }}>✓</span>}
           </button>
-          <div style={{ height:1, background:'#e4e7ee', margin:'4px 0' }} />
+          <div style={{ height:1, background:'var(--line)', margin:'4px 0' }} />
           {ACTIVITY_CATEGORIES.map(cat => (
-            <label key={cat} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:600, background: selected.includes(cat) ? '#f5f3ff' : '#fff' }}
-              onMouseEnter={e => { if (!selected.includes(cat)) e.currentTarget.style.background = '#f7f8fb' }}
-              onMouseLeave={e => { if (!selected.includes(cat)) e.currentTarget.style.background = '#fff' }}
-            >
-              <input
-                type="checkbox"
-                checked={selected.includes(cat)}
-                onChange={() => toggle(cat)}
-                style={{ accentColor:'#7c3aed', width:14, height:14, flexShrink:0 }}
-              />
-              <span>{CATEGORY_ICONS[cat]} {cat}</span>
+            <label key={cat} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:7, cursor:'pointer', fontSize:13, background: selected.includes(cat) ? 'var(--accent-bg)' : 'transparent', color: selected.includes(cat) ? 'var(--accent-txt)' : 'var(--ink)' }}>
+              <input type="checkbox" checked={selected.includes(cat)} onChange={() => toggle(cat)} style={{ accentColor:'var(--accent)', width:13, height:13, flexShrink:0 }} />
+              {CATEGORY_ICONS[cat]} {cat}
             </label>
           ))}
           {selected.length > 0 && (
             <>
-              <div style={{ height:1, background:'#e4e7ee', margin:'4px 0' }} />
-              <button
-                onClick={() => { onChange([]); setOpen(false) }}
-                style={{ width:'100%', padding:'6px 10px', border:'none', background:'none', cursor:'pointer', fontSize:12, color:'#be123c', fontWeight:700, textAlign:'left', borderRadius:10 }}
-              >
+              <div style={{ height:1, background:'var(--line)', margin:'4px 0' }} />
+              <button onClick={() => { onChange([]); setOpen(false) }} style={{ width:'100%', padding:'6px 10px', border:'none', background:'none', cursor:'pointer', fontSize:12, color:'var(--danger)', fontWeight:600, textAlign:'left', borderRadius:7 }}>
                 Clear filter
               </button>
             </>
@@ -76,56 +63,68 @@ function CategoryDropdown({ selected, onChange }) {
   )
 }
 
-export default function Topbar({ search, onSearchChange, categoryFilter, onCategoryChange, tierFilter, onTierChange, drawerOpen, onToggleDrawer, onUndo, onPrev, onNext, onToday, onAddActivity, onOpenSidebar }) {
+export default function Topbar({ search, onSearchChange, categoryFilter, onCategoryChange, tierFilter, onTierChange, drawerOpen, onToggleDrawer, onUndo, onPrev, onNext, onToday, onAddActivity, onOpenSidebar, calendarName }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
 
+  const navBtn = {
+    padding: '7px 12px',
+    border: '1px solid var(--line)',
+    borderRadius: 8,
+    background: '#fff',
+    fontSize: 13,
+    color: 'var(--ink)',
+    fontWeight: 500,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+  }
+
   return (
-    <header style={{ flexShrink:0, background:'rgba(255,255,255,0.94)', borderBottom:'1px solid var(--line)', padding:'14px 16px', zIndex:150, position:'relative' }}>
+    <header style={{ flexShrink:0, background:'#fff', borderBottom:'1px solid var(--line)', height:52, display:'flex', alignItems:'center', padding:'0 16px', gap:10, zIndex:150, position:'relative' }}>
 
       {/* ── Desktop layout ── */}
-      <div className="topbar-desktop" style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'center', flexWrap:'wrap' }}>
-        <div>
-          <p style={{ color:'var(--muted)', fontSize:13, margin:0 }}>Drag activities across dates and channels</p>
-          <h2 style={{ margin:0 }}>Marketing calendar</h2>
-        </div>
-        <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-          <input style={{ width:230 }} placeholder="Search activities or owners" value={search} onChange={e => onSearchChange(e.target.value)} />
-          <CategoryDropdown selected={categoryFilter} onChange={onCategoryChange} />
-          <select style={{ width:120 }} value={tierFilter} onChange={e => onTierChange(e.target.value)}>
-            <option value="all">All tiers</option>
-            {ACTIVITY_TIERS.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button className="btn btn-secondary" onClick={onUndo}>Undo</button>
-          <button className="btn btn-secondary" onClick={onPrev}>← Week</button>
-          <button className="btn btn-secondary" onClick={onToday}>Today</button>
-          <button className="btn btn-secondary" onClick={onNext}>Week →</button>
-          <button className="btn btn-secondary" onClick={onToggleDrawer}>{drawerOpen ? 'Hide panel' : 'Show panel'}</button>
-          <button className="btn btn-primary" onClick={onAddActivity}>+ Add activity</button>
-        </div>
+      <div className="topbar-desktop" style={{ flex:1, display:'flex', alignItems:'center', gap:8 }}>
+        {/* Nav buttons */}
+        <button style={navBtn} onClick={onPrev}>← Week</button>
+        <button style={{ ...navBtn, background:'var(--accent)', color:'#fff', border:'none', fontWeight:600 }} onClick={onToday}>Today</button>
+        <button style={navBtn} onClick={onNext}>Week →</button>
+
+        {/* Calendar name — centred */}
+        <span style={{ flex:1, textAlign:'center', fontSize:13, fontWeight:600, color:'var(--muted)' }}>
+          {calendarName || 'Marketing Calendar'}
+        </span>
+
+        {/* Right side tools */}
+        <CategoryDropdown selected={categoryFilter} onChange={onCategoryChange} />
+        <select value={tierFilter} onChange={e => onTierChange(e.target.value)} style={{ width:110, padding:'7px 10px', borderRadius:8, border:'1px solid var(--line)', fontSize:13, background:'#fff', color:'var(--ink)' }}>
+          <option value="all">All tiers</option>
+          {ACTIVITY_TIERS.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input style={{ width:200, padding:'7px 10px', borderRadius:8, border:'1px solid var(--line)', fontSize:13 }} placeholder="Search…" value={search} onChange={e => onSearchChange(e.target.value)} />
+        <button style={navBtn} onClick={onUndo} title="Undo">↩ Undo</button>
+        <button style={navBtn} onClick={onToggleDrawer}>{drawerOpen ? 'Hide panel' : 'Show panel'}</button>
+        <button style={{ ...navBtn, background:'var(--accent)', color:'#fff', border:'none', fontWeight:600 }} onClick={onAddActivity}>+ Add activity</button>
       </div>
 
       {/* ── Mobile layout ── */}
-      <div className="topbar-mobile">
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <button className="btn-mini" onClick={onOpenSidebar} style={{ fontSize:16, padding:'8px 10px' }}>☰</button>
-          <div style={{ flex:1 }}>
-            <h2 style={{ margin:0, fontSize:20 }}>Marketing calendar</h2>
-          </div>
-          <button className="btn btn-secondary" onClick={onToday} style={{ padding:'8px 12px', fontSize:13 }}>Today</button>
-          <button className="btn btn-primary" onClick={onAddActivity} style={{ padding:'8px 12px', fontSize:13 }}>+ Add</button>
+      <div className="topbar-mobile" style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button className="btn-mini" onClick={onOpenSidebar} style={{ fontSize:16 }}>☰</button>
+          <span style={{ flex:1, fontWeight:700, fontSize:16 }}>{calendarName || 'Marketing Calendar'}</span>
+          <button style={{ ...navBtn, background:'var(--accent)', color:'#fff', border:'none' }} onClick={onToday}>Today</button>
+          <button style={{ ...navBtn, background:'var(--accent)', color:'#fff', border:'none' }} onClick={onAddActivity}>+ Add</button>
         </div>
-        <div style={{ display:'flex', gap:8, marginTop:10, alignItems:'center' }}>
-          <button className="btn btn-secondary" onClick={onPrev} style={{ padding:'8px 10px', fontSize:13 }}>←</button>
-          <button className="btn btn-secondary" onClick={onNext} style={{ padding:'8px 10px', fontSize:13 }}>→</button>
-          <input style={{ flex:1, minWidth:0 }} placeholder="Search…" value={search} onChange={e => onSearchChange(e.target.value)} />
-          <button className="btn btn-secondary" onClick={() => setFiltersOpen(v => !v)} style={{ padding:'8px 10px', fontSize:13, whiteSpace:'nowrap' }}>
-            {filtersOpen ? 'Less ▲' : 'Filter ▼'}
-          </button>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <button style={navBtn} onClick={onPrev}>←</button>
+          <button style={navBtn} onClick={onNext}>→</button>
+          <input style={{ flex:1, minWidth:0, padding:'7px 10px', borderRadius:8, border:'1px solid var(--line)', fontSize:13 }} placeholder="Search…" value={search} onChange={e => onSearchChange(e.target.value)} />
+          <button style={navBtn} onClick={() => setFiltersOpen(v => !v)}>{filtersOpen ? '▲' : 'Filter ▼'}</button>
         </div>
         {filtersOpen && (
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:8 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
             <CategoryDropdown selected={categoryFilter} onChange={onCategoryChange} />
-            <select value={tierFilter} onChange={e => onTierChange(e.target.value)}>
+            <select value={tierFilter} onChange={e => onTierChange(e.target.value)} style={{ padding:'7px 10px', borderRadius:8, border:'1px solid var(--line)', fontSize:13 }}>
               <option value="all">All tiers</option>
               {ACTIVITY_TIERS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
