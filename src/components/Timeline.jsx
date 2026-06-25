@@ -22,7 +22,7 @@ function layoutItems(items) {
 function getVisible(campaigns, channelFilter, categoryFilter, tierFilter, search) {
   const q = search.toLowerCase()
   return campaigns.filter(i =>
-    (channelFilter === 'all' || i.channel === channelFilter) &&
+    (channelFilter.length === 0 || channelFilter.includes(i.channel)) &&
     (categoryFilter.length === 0 || categoryFilter.includes(i.category || 'Uncategorised')) &&
     (tierFilter === 'all' || (i.priority || 'Tier 1') === tierFilter) &&
     (String(i.title).toLowerCase().includes(q) || String(i.owner).toLowerCase().includes(q))
@@ -444,7 +444,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
     onAddAtDate(addDays(viewStart, dayIdx), channelId)
   }
 
-  const filteredChannels = channels.filter(ch => channelFilter === 'all' || ch.id === channelFilter)
+  const filteredChannels = channels.filter(ch => channelFilter.length === 0 || channelFilter.includes(ch.id))
 
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
