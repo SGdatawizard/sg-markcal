@@ -54,7 +54,6 @@ const STYLES = `
     flex-direction: column;
     gap: 5px;
     position: absolute;
-    bottom: calc(100% + 8px);
     left: 0;
     min-width: 220px;
     max-width: 320px;
@@ -69,7 +68,21 @@ const STYLES = `
     box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     white-space: nowrap;
   }
-  .act-tooltip::after {
+  .act-tooltip-below {
+    top: calc(100% + 8px);
+  }
+  .act-tooltip-below::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 16px;
+    border: 6px solid transparent;
+    border-bottom-color: #1a1a2e;
+  }
+  .act-tooltip-above {
+    bottom: calc(100% + 8px);
+  }
+  .act-tooltip-above::after {
     content: '';
     position: absolute;
     top: 100%;
@@ -90,7 +103,7 @@ const STYLES = `
     color: #a0a8c0;
     display: flex;
     gap: 6px;
-    align-items: center;
+    align-items: flex-start;
   }
   .act-tooltip-row span { color: #e0e3f0; }
   .resize-grip {
@@ -122,11 +135,13 @@ const STYLES = `
 `
 
 // ── Tooltip content ───────────────────────────────────────────────────────────
-function ActivityTooltip({ item, channels }) {
-  const ch = channels.find(c => c.id === item.channel)
+function ActivityTooltip({ item, channels, layoutRow }) {
+  const ch  = channels.find(c => c.id === item.channel)
   const dur = daysBetween(item.start, item.end)
+  // Show below if in first two rows (near top of calendar)
+  const below = (layoutRow || 0) < 2
   return (
-    <div className="act-tooltip">
+    <div className={`act-tooltip ${below ? 'act-tooltip-below' : 'act-tooltip-above'}`}>
       <div className="act-tooltip-title">{item.title || 'Untitled activity'}</div>
       <div className="act-tooltip-row">Channel: <span>{ch?.name || '—'}</span></div>
       <div className="act-tooltip-row">Owner: <span>{item.owner}</span></div>
@@ -134,7 +149,7 @@ function ActivityTooltip({ item, channels }) {
       <div className="act-tooltip-row">Priority: <span>{item.priority}</span></div>
       <div className="act-tooltip-row">Category: <span>{CATEGORY_ICONS[item.category]} {item.category}</span></div>
       <div className="act-tooltip-row">Dates: <span>{item.start} → {item.end} ({dur}d)</span></div>
-      {item.notes && <div className="act-tooltip-row">Notes: <span style={{ whiteSpace:'normal', maxWidth:200 }}>{item.notes.slice(0, 80)}{item.notes.length > 80 ? '…' : ''}</span></div>}
+      {item.notes && <div className="act-tooltip-row">Notes: <span style={{ whiteSpace:'normal', maxWidth:200 }}>{item.notes.slice(0,80)}{item.notes.length > 80 ? '…' : ''}</span></div>}
     </div>
   )
 }
@@ -173,7 +188,7 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
       }}
     >
       {/* Hover tooltip */}
-      {!isDragging && !isOverlay && <ActivityTooltip item={item} channels={channels} />}
+      {!isDragging && !isOverlay && <ActivityTooltip item={item} channels={channels} layoutRow={item.layoutRow} />}
 
       <div style={{ minWidth:0, flex:1 }}>
         <div style={{ fontSize:12, fontWeight:700, lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
@@ -229,19 +244,27 @@ function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSel
         const origStart = parseDate(item.start)
         const origEnd   = parseDate(item.end)
 
+        // Track pending values during drag — don't call onResize until release
+        let pendingStart = null
+        let pendingEnd   = null
+
         function onMove(mv) {
           const delta = Math.round((mv.clientX - startX) / DAY_WIDTH)
           if (side === 'right') {
             const ne = addDays(origEnd, delta)
-            if (ne >= origStart) onResize(item.id, null, ne)
+            if (ne >= origStart) pendingEnd = ne
           } else {
             const ns = addDays(origStart, delta)
-            if (ns <= origEnd) onResize(item.id, ns, null)
+            if (ns <= origEnd) pendingStart = ns
           }
         }
         function onUp() {
           window.removeEventListener('pointermove', onMove)
           window.removeEventListener('pointerup', onUp)
+          // Only save if something actually changed
+          if (pendingStart !== null || pendingEnd !== null) {
+            onResize(item.id, pendingStart, pendingEnd)
+          }
         }
         window.addEventListener('pointermove', onMove)
         window.addEventListener('pointerup', onUp)
