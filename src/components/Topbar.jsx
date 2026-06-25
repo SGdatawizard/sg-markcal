@@ -63,7 +63,70 @@ function CategoryDropdown({ selected, onChange }) {
   )
 }
 
-export default function Topbar({ search, onSearchChange, categoryFilter, onCategoryChange, tierFilter, onTierChange, drawerOpen, onToggleDrawer, onUndo, onPrev, onNext, onToday, onAddActivity, onOpenSidebar, calendarName }) {
+function ChannelDropdown({ channels, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function toggle(id) {
+    if (selected.includes(id)) onChange(selected.filter(c => c !== id))
+    else onChange([...selected, id])
+  }
+
+  const label = selected.length === 0
+    ? 'All channels'
+    : selected.length === 1
+    ? channels.find(c => c.id === selected[0])?.name || 'Channel'
+    : `${selected.length} channels`
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ padding:'7px 12px', border:'1px solid var(--line)', borderRadius:8, background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--ink)', whiteSpace:'nowrap', fontFamily:'inherit' }}
+      >
+        <span>{label}</span>
+        <span style={{ color:'var(--muted)', fontSize:10 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, width:190, background:'#fff', border:'1px solid var(--line)', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.08)', zIndex:300, padding:6 }}>
+          <button
+            onClick={() => { onChange([]); setOpen(false) }}
+            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 10px', border:'none', background: selected.length === 0 ? 'var(--accent-bg)' : '#fff', borderRadius:7, cursor:'pointer', fontSize:13, color: selected.length === 0 ? 'var(--accent-txt)' : 'var(--ink)', fontWeight: selected.length === 0 ? 700 : 400, textAlign:'left' }}
+          >
+            All channels
+            {selected.length === 0 && <span style={{ marginLeft:'auto', fontSize:12 }}>✓</span>}
+          </button>
+          <div style={{ height:1, background:'var(--line)', margin:'4px 0' }} />
+          {channels.map(ch => (
+            <label key={ch.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:7, cursor:'pointer', fontSize:13, background: selected.includes(ch.id) ? 'var(--accent-bg)' : 'transparent', color: selected.includes(ch.id) ? 'var(--accent-txt)' : 'var(--ink)' }}>
+              <input type="checkbox" checked={selected.includes(ch.id)} onChange={() => toggle(ch.id)} style={{ accentColor:'var(--accent)', width:13, height:13, flexShrink:0 }} />
+              <span style={{ width:8, height:8, borderRadius:'50%', background:ch.color, flexShrink:0, display:'inline-block' }} />
+              {ch.name}
+            </label>
+          ))}
+          {selected.length > 0 && (
+            <>
+              <div style={{ height:1, background:'var(--line)', margin:'4px 0' }} />
+              <button onClick={() => { onChange([]); setOpen(false) }} style={{ width:'100%', padding:'6px 10px', border:'none', background:'none', cursor:'pointer', fontSize:12, color:'var(--danger)', fontWeight:600, textAlign:'left', borderRadius:7 }}>
+                Clear filter
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Topbar({ channels = [], search, onSearchChange, channelFilter, onChannelChange, categoryFilter, onCategoryChange, tierFilter, onTierChange, drawerOpen, onToggleDrawer, onUndo, onPrev, onNext, onToday, onAddActivity, onOpenSidebar, calendarName }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const navBtn = {
@@ -96,6 +159,7 @@ export default function Topbar({ search, onSearchChange, categoryFilter, onCateg
         </span>
 
         {/* Right side tools */}
+        <ChannelDropdown channels={channels} selected={channelFilter} onChange={onChannelChange} />
         <CategoryDropdown selected={categoryFilter} onChange={onCategoryChange} />
         <select value={tierFilter} onChange={e => onTierChange(e.target.value)} style={{ width:110, padding:'7px 10px', borderRadius:8, border:'1px solid var(--line)', fontSize:13, background:'#fff', color:'var(--ink)' }}>
           <option value="all">All tiers</option>
