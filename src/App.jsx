@@ -298,15 +298,24 @@ export default function App() {
   // ── Campaign actions ────────────────────────────────────────────────────────
   function updateCampaign(id, fields) {
     snapshot()
-    const next = campaigns.map(c => c.id === id ? { ...c, ...fields } : c)
-    setCampaigns(next); saveAll(channels, owners, next)
+    setCampaigns(prev => {
+      const next = prev.map(c => c.id === id ? { ...c, ...fields } : c)
+      const updated = next.find(c => c.id === id)
+      if (updated) sb.from('campaigns').upsert({ id, calendar_id: activeCalendarId, data: updated }, { onConflict: 'id' }).then(() => showSync('Saved ✓')).catch(() => showSync('Save failed', true))
+      return next
+    })
   }
   function moveCampaign(id, newStart, newEnd, newChannel) {
     snapshot()
-    const next = campaigns.map(c =>
-      c.id === id ? { ...c, start: fmtDate(newStart), end: fmtDate(newEnd), channel: newChannel } : c
-    )
-    setCampaigns(next); saveAll(channels, owners, next)
+    setCampaigns(prev => {
+      const updated = prev.find(c => c.id === id)
+      if (!updated) return prev
+      const moved = { ...updated, start: fmtDate(newStart), end: fmtDate(newEnd), channel: newChannel }
+      const next = prev.map(c => c.id === id ? moved : c)
+      // Save directly by ID — avoids stale closure issue with saveAll
+      sb.from('campaigns').upsert({ id, calendar_id: activeCalendarId, data: moved }, { onConflict: 'id' }).then(() => showSync('Saved ✓')).catch(() => showSync('Save failed', true))
+      return next
+    })
   }
   function deleteCampaign(id) {
     snapshot()
