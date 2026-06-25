@@ -42,7 +42,7 @@ export default function App() {
   const [loading,    setLoading]    = useState(true)
 
   const [viewStart,      setViewStart]      = useState(() => new Date(new Date().getFullYear(), 0, 1))
-  const [channelFilter,  setChannelFilter]  = useState('all')
+  const [channelFilter,  setChannelFilter]  = useState([])
   const [categoryFilter, setCategoryFilter] = useState([])
   const [tierFilter,     setTierFilter]     = useState('all')
   const [search,         setSearch]         = useState('')
@@ -140,7 +140,7 @@ export default function App() {
       setOwners(fOw)
       setCampaigns(fCam)
       setMilestones(fMil)
-      setChannelFilter('all')
+      setChannelFilter([])
       setSelectedId(null)
       setDrawerOpen(false)
       setDraftActivity(null)
@@ -242,7 +242,7 @@ export default function App() {
     snapshot()
     const c = { id: 'channel_' + Date.now(), name, color: CHANNEL_COLOURS[channels.length % CHANNEL_COLOURS.length] }
     const next = [...channels, c]
-    setChannels(next); setChannelFilter(c.id)
+    setChannels(next); setChannelFilter([c.id])
     saveAll(next, owners, campaigns)
   }
   function renameChannel(id, name) {
@@ -262,7 +262,7 @@ export default function App() {
     const nextCh  = channels.filter(c => c.id !== id)
     const nextCam = campaigns.map(c => c.channel === id ? { ...c, channel: fallback } : c)
     setChannels(nextCh); setCampaigns(nextCam)
-    if (channelFilter === id) setChannelFilter('all')
+    if (channelFilter.includes(id)) setChannelFilter([])
     saveAll(nextCh, owners, nextCam)
   }
   function moveChannel(id, dir) {
@@ -358,7 +358,7 @@ export default function App() {
   }
 
   function addActivityAtDate(startDate, channelId) {
-    const ch = channelId || (channelFilter === 'all' ? channels[0]?.id : channelFilter)
+    const ch = channelId || (channelFilter.length === 0 ? channels[0]?.id : channelFilter[0])
     const s = startDate || new Date()
     setDraftActivity({ id: Date.now(), title: '', channel: ch, owner: owners[0] || 'Team', status: 'Planned', priority: 'Tier 1', category: 'Uncategorised', start: fmtDate(s), end: fmtDate(s), notes: '', attachments: [], recurrence: 'None', recurrenceCount: 1 })
     setDrawerOpen(true); setSelectedId(null)
@@ -395,6 +395,8 @@ export default function App() {
       <div style={{ flex:1, minWidth:0, height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <Topbar
           search={search} onSearchChange={setSearch}
+          channels={channels}
+          channelFilter={channelFilter} onChannelChange={setChannelFilter}
           categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
           tierFilter={tierFilter} onTierChange={setTierFilter}
           drawerOpen={drawerOpen} onToggleDrawer={() => setDrawerOpen(v => !v)}
