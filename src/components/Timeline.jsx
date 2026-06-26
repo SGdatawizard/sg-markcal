@@ -38,74 +38,19 @@ const STYLES = `
     overflow: hidden;
     position: relative;
     user-select: none;
-    transition: box-shadow 0.15s, transform 0.1s;
+    transition: box-shadow 0.15s, transform 0.1s, min-width 0.15s, width 0.15s;
   }
   .act-block:not(.is-dragging):hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(99,102,241,0.18) !important;
     z-index: 999 !important;
     overflow: visible !important;
+    min-width: var(--hover-w) !important;
+    width: var(--hover-w) !important;
+    background: #fff !important;
   }
-  .act-block:not(.is-dragging):hover .act-tooltip {
-    display: flex !important;
-  }
-  .act-tooltip {
-    display: none;
-    flex-direction: column;
-    gap: 5px;
-    position: absolute;
-    left: 0;
-    min-width: 220px;
-    max-width: 320px;
-    background: #1a1a2e;
-    color: #fff;
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 12px;
-    line-height: 1.5;
-    z-index: 1000;
-    pointer-events: none;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    white-space: nowrap;
-  }
-  .act-tooltip-below {
-    top: calc(100% + 8px);
-  }
-  .act-tooltip-below::after {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 16px;
-    border: 6px solid transparent;
-    border-bottom-color: #1a1a2e;
-  }
-  .act-tooltip-above {
-    bottom: calc(100% + 8px);
-  }
-  .act-tooltip-above::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 16px;
-    border: 6px solid transparent;
-    border-top-color: #1a1a2e;
-  }
-  .act-tooltip-title {
-    font-weight: 700;
-    font-size: 13px;
-    color: #fff;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 280px;
-  }
-  .act-tooltip-row {
-    color: #a0a8c0;
-    display: flex;
-    gap: 6px;
-    align-items: flex-start;
-  }
-  .act-tooltip-row span { color: #e0e3f0; }
+  .act-block:not(.is-dragging):hover .act-meta { display: block !important; }
+  .act-wrap:hover { z-index: 999 !important; }
   .resize-grip {
     position: absolute;
     top: 50%;
@@ -166,6 +111,10 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
   const bgAlpha = isDone ? '#f3f4f6' : isBlock ? '#fff1f2' : `${accent}12`
   const textCol = isDone ? '#6b7280' : '#1a1a2e'
 
+  const titleLen = String(item.title || 'Untitled').length
+  const metaLen  = String(`${item.owner} · ${item.status} · ${item.category} · ${item.priority}`).length
+  const hoverW   = Math.min(520, Math.max(260, Math.max(titleLen, metaLen) * 8 + 80))
+
   function openLink(e) {
     e.stopPropagation()
     window.open(`${window.location.origin}${window.location.pathname}#calendar=${item.linked_calendar_id}`, '_blank')
@@ -178,37 +127,33 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
         background: bgAlpha,
         border: `1.5px solid ${accent}40`,
         borderLeft: `3px solid ${accent}`,
-        padding: isShort ? '6px 8px' : '6px 28px 6px 10px',
+        padding: '6px 28px 6px 10px',
         color: textCol,
         opacity: isDragging ? 0.35 : 1,
         outline: !isDragging && !isOverlay && selectedId === item.id ? `2px solid ${accent}` : 'none',
         outlineOffset: 1,
         cursor: isOverlay ? 'grabbing' : 'grab',
         boxShadow: isOverlay ? '0 12px 32px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
+        '--hover-w': hoverW + 'px',
       }}
     >
-      {/* Hover tooltip */}
-      {!isDragging && !isOverlay && <ActivityTooltip item={item} channels={channels} layoutRow={item.layoutRow} />}
-
       <div style={{ minWidth:0, flex:1 }}>
         <div style={{ fontSize:12, fontWeight:700, lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
           {item.title || 'Untitled'}
           {hasLink && <span style={{ marginLeft:5, fontSize:9, background:'var(--accent-bg)', color:'var(--accent-txt)', borderRadius:3, padding:'1px 4px', fontWeight:700, verticalAlign:'middle' }}>↗</span>}
         </div>
-        {!isShort && (
-          <div style={{ fontSize:10, color:'var(--muted)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {item.owner} · {item.status} · {item.priority}
-          </div>
-        )}
+        <div className="act-meta" style={{ fontSize:10, color:'var(--muted)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display: isShort ? 'none' : 'block' }}>
+          {item.owner} · {item.status} · {CATEGORY_ICONS[item.category] || '📦'} {item.category} · {item.priority}
+        </div>
       </div>
       {hasLink && !isDragging && !isOverlay ? (
         <span onClick={openLink} title="Open planning calendar"
           style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', width:16, height:16, borderRadius:'50%', display:'grid', placeItems:'center', fontSize:9, background:'var(--accent-bg)', color:'var(--accent)', cursor:'pointer', zIndex:6 }}>→</span>
-      ) : !isShort ? (
+      ) : (
         <span style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', fontSize:11, zIndex:6, opacity:0.5 }}>
           {STATUS_ICONS[item.status] || '·'}
         </span>
-      ) : null}
+      )}
     </div>
   )
 }
@@ -496,11 +441,11 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                 const today   = isToday(day)
                 const weekend = isWeekend(day)
                 return (
-                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? 'var(--accent-bg)' : weekend ? '#ededf2' : undefined }}>
-                    <span style={{ fontSize:10, fontWeight:600, color: today ? 'var(--accent)' : weekend ? '#8890a8' : 'var(--muted)', whiteSpace:'nowrap' }}>
+                  <div key={i} style={{ padding:'5px 2px', borderRight:'1px solid var(--line)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', background: today ? '#dcfce7' : weekend ? '#ededf2' : undefined }}>
+                    <span style={{ fontSize:10, fontWeight:600, color: today ? '#16a34a' : weekend ? '#8890a8' : 'var(--muted)', whiteSpace:'nowrap' }}>
                       {day.toLocaleDateString('en-GB', { month:'short' })} {day.getDate()}
                     </span>
-                    <span style={{ fontSize:10, fontWeight:700, color: today ? 'var(--accent)' : weekend ? '#8890a8' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em' }}>
+                    <span style={{ fontSize:10, fontWeight:700, color: today ? '#16a34a' : weekend ? '#8890a8' : 'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em' }}>
                       {day.toLocaleDateString('en-GB', { weekday:'short' })}
                     </span>
                   </div>
@@ -531,7 +476,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                     >
                       {days.map((day, idx) =>
                         isToday(day)
-                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'var(--accent-bg)', opacity:0.4, pointerEvents:'none', zIndex:0 }} />
+                          ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#dcfce7', opacity:0.5, pointerEvents:'none', zIndex:0 }} />
                           : isWeekend(day)
                           ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#eeeef3', pointerEvents:'none', zIndex:0 }} />
                           : null
