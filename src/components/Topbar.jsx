@@ -187,6 +187,7 @@ export default function Topbar({ channels = [], search, onSearchChange, channelF
         </div>
         {filtersOpen && (
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <ChannelDropdown channels={channels} selected={channelFilter} onChange={onChannelChange} />
             <CategoryDropdown selected={categoryFilter} onChange={onCategoryChange} />
             <select value={tierFilter} onChange={e => onTierChange(e.target.value)} style={{ padding:'7px 10px', borderRadius:8, border:'1px solid var(--line)', fontSize:13 }}>
               <option value="all">All tiers</option>
