@@ -100,7 +100,7 @@ function ActivityTooltip({ item, channels, layoutRow }) {
 }
 
 // ── Activity block (visual) ───────────────────────────────────────────────────
-function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay }) {
+function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging, isOverlay, currentWidthPx }) {
   const ch      = channels.find(c => c.id === item.channel) || channels[0]
   const len     = daysBetween(item.start, item.end)
   const isDone  = item.status === 'Done'
@@ -113,7 +113,9 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
 
   const titleLen = String(item.title || 'Untitled').length
   const metaLen  = String(`${item.owner} · ${item.status} · ${item.category} · ${item.priority}`).length
-  const hoverW   = Math.min(520, Math.max(260, Math.max(titleLen, metaLen) * 8 + 80))
+  const naturalHoverW = Math.min(520, Math.max(260, Math.max(titleLen, metaLen) * 8 + 80))
+  // Never shrink on hover — if the block is already wider than the natural hover width, keep its current width
+  const hoverW = currentWidthPx ? Math.max(naturalHoverW, currentWidthPx) : naturalHoverW
 
   function openLink(e) {
     e.stopPropagation()
@@ -173,6 +175,14 @@ function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSel
 
   const leftGripRef  = useRef(null)
   const rightGripRef = useRef(null)
+  const wrapRef       = useRef(null)
+  const suppressClick = useRef(false)
+
+  // Combine dnd-kit's setNodeRef with our own local ref
+  function combinedRef(node) {
+    setNodeRef(node)
+    wrapRef.current = node
+  }
 
   // Attach native capture-phase pointerdown to grips so they fire before dnd-kit
   useEffect(() => {
@@ -185,29 +195,42 @@ function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSel
       return function onPointerDown(e) {
         e.stopPropagation()
         e.preventDefault()
-        const startX    = e.clientX
-        const origStart = parseDate(item.start)
-        const origEnd   = parseDate(item.end)
+        const startX     = e.clientX
+        const origStart  = parseDate(item.start)
+        const origEnd    = parseDate(item.end)
+        const origLeftPx = leftPx
+        const origWidthPx = widthPx
 
-        // Track pending values during drag — don't call onResize until release
         let pendingStart = null
         let pendingEnd   = null
 
         function onMove(mv) {
           const delta = Math.round((mv.clientX - startX) / DAY_WIDTH)
+          const el = wrapRef.current
           if (side === 'right') {
             const ne = addDays(origEnd, delta)
-            if (ne >= origStart) pendingEnd = ne
+            if (ne >= origStart) {
+              pendingEnd = ne
+              // Live visual feedback — resize the wrapper directly, no re-render
+              if (el) el.style.width = `${origWidthPx + delta * DAY_WIDTH}px`
+            }
           } else {
             const ns = addDays(origStart, delta)
-            if (ns <= origEnd) pendingStart = ns
+            if (ns <= origEnd) {
+              pendingStart = ns
+              // Live visual feedback — move + resize the wrapper directly
+              if (el) {
+                el.style.left  = `${origLeftPx + delta * DAY_WIDTH}px`
+                el.style.width = `${origWidthPx - delta * DAY_WIDTH}px`
+              }
+            }
           }
         }
         function onUp() {
           window.removeEventListener('pointermove', onMove)
           window.removeEventListener('pointerup', onUp)
-          // Only save if something actually changed
           if (pendingStart !== null || pendingEnd !== null) {
+            suppressClick.current = true
             onResize(item.id, pendingStart, pendingEnd)
           }
         }
@@ -228,13 +251,20 @@ function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSel
         el.removeEventListener('pointerdown', handler, { capture: true })
       }
     }
-  }, [item.start, item.end, item.id])
+  }, [item.start, item.end, item.id, leftPx, widthPx])
+
+  function handleClick(e) {
+    e.stopPropagation()
+    // Ignore the click that fires right after a resize gesture completes
+    if (suppressClick.current) { suppressClick.current = false; return }
+    if (!isDragging) onSelect(item.id)
+  }
 
   return (
     <div
       className={`act-wrap${isSelected ? ' is-selected' : ''}`}
-      ref={setNodeRef}
-      onClick={e => { e.stopPropagation(); if (!isDragging) onSelect(item.id) }}
+      ref={combinedRef}
+      onClick={handleClick}
       style={{ left:leftPx, top, width:widthPx, height:52, touchAction:'none', zIndex: isDragging ? 1 : isSelected ? 10 : 2 }}
     >
       {/* Left resize grip — native capture listener */}
@@ -244,7 +274,7 @@ function DraggableItem({ item, channels, calendars, viewStart, selectedId, onSel
 
       {/* dnd-kit drag zone — inner div only */}
       <div {...listeners} {...attributes} style={{ position:'absolute', inset:0 }}>
-        <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} />
+        <ActivityBlock item={item} channels={channels} calendars={calendars} selectedId={selectedId} isDragging={isDragging} currentWidthPx={widthPx} />
       </div>
 
       {/* Right resize grip */}
@@ -385,7 +415,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   function handleLaneClick(e, channelId) {
     if (e.defaultPrevented) return
     const rect   = e.currentTarget.getBoundingClientRect()
-    const dayIdx = Math.max(0, Math.min(VIEW_DAYS - 1, Math.floor((e.clientX - rect.left) / DAY_WIDTH)))
+    const dayIdx = Math.max(0, Math.min(viewDays - 1, Math.floor((e.clientX - rect.left) / DAY_WIDTH)))
     onAddAtDate(addDays(viewStart, dayIdx), channelId)
   }
 
