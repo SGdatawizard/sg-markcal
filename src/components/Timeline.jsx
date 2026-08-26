@@ -3,8 +3,17 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   pointerWithin, useDraggable, useDroppable,
 } from '@dnd-kit/core'
-import { DAY_WIDTH, LABEL_WIDTH, VIEW_DAYS, CATEGORY_ICONS, STATUS_ICONS } from '../constants'
+import { DAY_WIDTH, LABEL_WIDTH, CATEGORY_ICONS, STATUS_ICONS } from '../constants'
 import { addDays, fmtDate, parseDate, daysBetween, isToday, isWeekend } from '../dateUtils'
+
+// Snaps drag movement to whole-day increments so the overlay visibly "clicks"
+// from column to column as you drag — makes the movement obvious and grid-locked.
+function snapToDayGrid({ transform }) {
+  return {
+    ...transform,
+    x: Math.round(transform.x / DAY_WIDTH) * DAY_WIDTH,
+  }
+}
 
 function layoutItems(items) {
   const lanes = []
@@ -126,16 +135,17 @@ function ActivityBlock({ item, channels, calendars = [], selectedId, isDragging,
     <div
       className={['act-block', isDragging ? 'is-dragging' : '', isOverlay ? 'is-overlay' : ''].filter(Boolean).join(' ')}
       style={{
-        background: bgAlpha,
-        border: `1.5px solid ${accent}40`,
-        borderLeft: `3px solid ${accent}`,
+        border: isDragging ? `2px dashed ${accent}80` : `1.5px solid ${accent}40`,
+        borderLeft: isDragging ? `2px dashed ${accent}80` : `3px solid ${accent}`,
         padding: '6px 28px 6px 10px',
         color: textCol,
-        opacity: isDragging ? 0.35 : 1,
+        opacity: isDragging ? 0.5 : 1,
         outline: !isDragging && !isOverlay && selectedId === item.id ? `2px solid ${accent}` : 'none',
         outlineOffset: 1,
         cursor: isOverlay ? 'grabbing' : 'grab',
-        boxShadow: isOverlay ? '0 12px 32px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
+        boxShadow: isOverlay ? '0 16px 40px rgba(0,0,0,0.22)' : '0 1px 3px rgba(0,0,0,0.06)',
+        transform: isOverlay ? 'scale(1.03) rotate(-1deg)' : undefined,
+        background: isOverlay ? '#fff' : (isDragging ? 'transparent' : bgAlpha),
         '--hover-w': hoverW + 'px',
       }}
     >
@@ -317,6 +327,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   const [activeMilestone, setActiveMilestone] = useState(null)
   const [overChannelId,   setOverChannelId]   = useState(null)
   const [scrollLeft,      setScrollLeft]      = useState(0)
+  const [dragDayDelta,    setDragDayDelta]    = useState(0)
 
   const [milestoneForm,    setMilestoneForm]    = useState(false)
   const [mTitle,           setMTitle]           = useState('')
@@ -383,9 +394,14 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   }
 
   function handleDragStart({ active }) {
+    setDragDayDelta(0)
     if (active.data.current?.type === 'milestone') { setActiveMilestone(active.data.current.milestone); return }
     setActiveItem(active.data.current.item)
     setOverChannelId(active.data.current.item.channel)
+  }
+
+  function handleDragMove({ delta }) {
+    setDragDayDelta(Math.round(delta.x / DAY_WIDTH))
   }
 
   function handleDragOver({ over }) {
@@ -394,7 +410,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   }
 
   function handleDragEnd({ active, delta, over }) {
-    setActiveItem(null); setActiveMilestone(null)
+    setActiveItem(null); setActiveMilestone(null); setDragDayDelta(0)
     if (!active) return
     if (active.data.current?.type === 'milestone') {
       const m = active.data.current.milestone
@@ -422,7 +438,7 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
   const filteredChannels = channels.filter(ch => channelFilter.length === 0 || channelFilter.includes(ch.id))
 
   return (
-    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} modifiers={[snapToDayGrid]} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <style>{STYLES}</style>
       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
@@ -511,6 +527,21 @@ export default function Timeline({ channels, campaigns, calendars = [], viewStar
                           ? <div key={idx} style={{ position:'absolute', top:0, height:'100%', width:DAY_WIDTH, left:idx*DAY_WIDTH, background:'#eeeef3', pointerEvents:'none', zIndex:0 }} />
                           : null
                       )}
+
+                      {/* Live landing preview — shows exactly where the activity will drop, updating in real time as you drag */}
+                      {activeItem && isOver && (() => {
+                        const previewStart = addDays(parseDate(activeItem.start), dragDayDelta)
+                        const previewOffset = Math.round((previewStart - viewStart) / 86400000)
+                        const previewWidth = Math.max(DAY_WIDTH - 4, daysBetween(activeItem.start, activeItem.end) * DAY_WIDTH - 4)
+                        const previewLeft = Math.max(0, previewOffset) * DAY_WIDTH + 2
+                        return (
+                          <div style={{
+                            position: 'absolute', top: 8, left: previewLeft, width: previewWidth, height: 52,
+                            border: `2px dashed ${ch.color}`, borderRadius: 8, background: `${ch.color}18`,
+                            pointerEvents: 'none', zIndex: 15, transition: 'left 0.05s linear',
+                          }} />
+                        )
+                      })()}
                       {milestones.map(m => {
                         const offset = Math.round((parseDate(m.date) - viewStart) / 86400000)
                         if (offset < 0 || offset >= viewDays) return null
