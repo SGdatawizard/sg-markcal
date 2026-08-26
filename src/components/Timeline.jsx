@@ -56,9 +56,9 @@ const STYLES = `
     overflow: visible !important;
     min-width: var(--hover-w) !important;
     width: var(--hover-w) !important;
-    background: rgba(255,255,255,0.82) !important;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(255,255,255,0.62) !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
   .act-block:not(.is-dragging):not(.is-overlay):hover .act-meta { display: block !important; }
   .act-wrap:hover { z-index: 999 !important; }
