@@ -49,16 +49,18 @@ const STYLES = `
     user-select: none;
     transition: box-shadow 0.15s, transform 0.1s, min-width 0.15s, width 0.15s;
   }
-  .act-block:not(.is-dragging):hover {
+  .act-block:not(.is-dragging):not(.is-overlay):hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(99,102,241,0.18) !important;
     z-index: 999 !important;
     overflow: visible !important;
     min-width: var(--hover-w) !important;
     width: var(--hover-w) !important;
-    background: #fff !important;
+    background: rgba(255,255,255,0.82) !important;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
-  .act-block:not(.is-dragging):hover .act-meta { display: block !important; }
+  .act-block:not(.is-dragging):not(.is-overlay):hover .act-meta { display: block !important; }
   .act-wrap:hover { z-index: 999 !important; }
   .resize-grip {
     position: absolute;
