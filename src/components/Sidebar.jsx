@@ -101,8 +101,8 @@ export default function Sidebar({
       <div style={{ flex:1, overflowY:'auto', padding:'8px 10px' }}>
         {/* All channels */}
         <button
-          onClick={() => { onFilterChange('all'); onClose?.() }}
-          style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 10px', borderRadius:8, border:'none', background: channelFilter === 'all' ? 'var(--accent-bg)' : 'transparent', color: channelFilter === 'all' ? 'var(--accent-txt)' : 'var(--ink)', fontSize:13, fontWeight: channelFilter === 'all' ? 700 : 500, cursor:'pointer', textAlign:'left', marginBottom:4 }}
+          onClick={() => { onFilterChange([]); onClose?.() }}
+          style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 10px', borderRadius:8, border:'none', background: channelFilter.length === 0 ? 'var(--accent-bg)' : 'transparent', color: channelFilter.length === 0 ? 'var(--accent-txt)' : 'var(--ink)', fontSize:13, fontWeight: channelFilter.length === 0 ? 700 : 500, cursor:'pointer', textAlign:'left', marginBottom:4 }}
         >
           <span style={{ fontSize:14 }}>◈</span> All channels
         </button>
@@ -120,8 +120,8 @@ export default function Sidebar({
             ) : (
               <div style={{ borderRadius:8, overflow:'hidden' }}>
                 <button
-                  onClick={() => { onFilterChange(ch.id); onClose?.() }}
-                  style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 10px', border:'none', background: channelFilter === ch.id ? 'var(--accent-bg)' : 'transparent', color: channelFilter === ch.id ? 'var(--accent-txt)' : 'var(--ink)', fontSize:13, fontWeight: channelFilter === ch.id ? 700 : 500, cursor:'pointer', textAlign:'left' }}
+                  onClick={() => { onFilterChange([ch.id]); onClose?.() }}
+                  style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 10px', border:'none', background: channelFilter.length === 1 && channelFilter[0] === ch.id ? 'var(--accent-bg)' : 'transparent', color: channelFilter.length === 1 && channelFilter[0] === ch.id ? 'var(--accent-txt)' : 'var(--ink)', fontSize:13, fontWeight: channelFilter.length === 1 && channelFilter[0] === ch.id ? 700 : 500, cursor:'pointer', textAlign:'left' }}
                 >
                   <span className="dot" style={{ background: ch.color }} />
                   <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ch.name}</span>
