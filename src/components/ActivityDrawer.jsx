@@ -28,7 +28,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
   const [statusVal,      setStatusVal]      = useState(activity?.status          || 'Planned')
   const [priorityVal,    setPriorityVal]    = useState(activity?.priority        || 'Tier 1')
   const [categoryVal,    setCategoryVal]    = useState(activity?.category        || 'Uncategorised')
-  const [locationVal,    setLocationVal]    = useState(activity?.location        || 'Singapore')
+  const [locationVal,    setLocationVal]    = useState(activity?.location        || '')
   const [recurrenceVal,  setRecurrenceVal]  = useState(activity?.recurrence      || 'None')
   const [recCountVal,    setRecCountVal]    = useState(activity?.recurrenceCount || 1)
   const [creatingLinked, setCreatingLinked] = useState(false)
@@ -47,7 +47,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
     setStatusVal(activity?.status         || 'Planned')
     setPriorityVal(activity?.priority     || 'Tier 1')
     setCategoryVal(activity?.category     || 'Uncategorised')
-    setLocationVal(activity?.location     || 'Singapore')
+    setLocationVal(activity?.location     || '')
     setRecurrenceVal(activity?.recurrence      || 'None')
     setRecCountVal(activity?.recurrenceCount   || 1)
     setLastId(actId)
@@ -60,12 +60,14 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
   function handleSave() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
+    if (!locationVal) { alert('Please select a location.'); return }
     onUpdate({ title:titleVal.trim(), start:startVal, end:endVal, notes:notesVal, channel:channelVal, owner:ownerVal, status:statusVal, priority:priorityVal, category:categoryVal, location:locationVal })
   }
 
   function handleCreate() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
+    if (!locationVal) { alert('Please select a location.'); return }
     onCreate({ ...activity, title:titleVal.trim(), start:startVal, end:endVal, notes:notesVal, channel:channelVal, owner:ownerVal, status:statusVal, priority:priorityVal, category:categoryVal, location:locationVal, recurrence:recurrenceVal, recurrenceCount:Number(recCountVal) })
   }
 
@@ -148,6 +150,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
           </Field>
           <Field label="Location">
             <select value={locationVal} onChange={set(setLocationVal, 'location')}>
+              <option value="" disabled>Select location…</option>
               {ACTIVITY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </Field>
