@@ -15,6 +15,7 @@ export const ACTIVITY_CATEGORIES = [
 
 export const ACTIVITY_TIERS = ['Tier 1','Tier 2','Tier 3']
 export const STATUS_OPTIONS = ['Planned','In progress','Blocked','Done']
+export const ACTIVITY_LOCATIONS = ['Singapore','ROW']
 
 export const CATEGORY_ICONS = {
   Uncategorised:'📦', Stamps:'📮', Coins:'🪙', Bullion:'🥇',
