@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ACTIVITY_CATEGORIES, ACTIVITY_TIERS, STATUS_OPTIONS, CATEGORY_ICONS } from '../constants'
+import { ACTIVITY_CATEGORIES, ACTIVITY_TIERS, STATUS_OPTIONS, ACTIVITY_LOCATIONS, CATEGORY_ICONS } from '../constants'
 
 function Label({ children }) {
   return (
@@ -28,6 +28,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
   const [statusVal,      setStatusVal]      = useState(activity?.status          || 'Planned')
   const [priorityVal,    setPriorityVal]    = useState(activity?.priority        || 'Tier 1')
   const [categoryVal,    setCategoryVal]    = useState(activity?.category        || 'Uncategorised')
+  const [locationVal,    setLocationVal]    = useState(activity?.location        || 'Singapore')
   const [recurrenceVal,  setRecurrenceVal]  = useState(activity?.recurrence      || 'None')
   const [recCountVal,    setRecCountVal]    = useState(activity?.recurrenceCount || 1)
   const [creatingLinked, setCreatingLinked] = useState(false)
@@ -46,6 +47,7 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
     setStatusVal(activity?.status         || 'Planned')
     setPriorityVal(activity?.priority     || 'Tier 1')
     setCategoryVal(activity?.category     || 'Uncategorised')
+    setLocationVal(activity?.location     || 'Singapore')
     setRecurrenceVal(activity?.recurrence      || 'None')
     setRecCountVal(activity?.recurrenceCount   || 1)
     setLastId(actId)
@@ -58,13 +60,13 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
   function handleSave() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
-    onUpdate({ title:titleVal.trim(), start:startVal, end:endVal, notes:notesVal, channel:channelVal, owner:ownerVal, status:statusVal, priority:priorityVal, category:categoryVal })
+    onUpdate({ title:titleVal.trim(), start:startVal, end:endVal, notes:notesVal, channel:channelVal, owner:ownerVal, status:statusVal, priority:priorityVal, category:categoryVal, location:locationVal })
   }
 
   function handleCreate() {
     if (!titleVal.trim()) { alert('Please add an activity title.'); return }
     if (endVal < startVal) { alert('End date cannot be before start date.'); return }
-    onCreate({ ...activity, title:titleVal.trim(), start:startVal, end:endVal, notes:notesVal, channel:channelVal, owner:ownerVal, status:statusVal, priority:priorityVal, category:categoryVal, recurrence:recurrenceVal, recurrenceCount:Number(recCountVal) })
+    onCreate({ ...activity, title:titleVal.trim(), start:startVal, end:endVal, notes:notesVal, channel:channelVal, owner:ownerVal, status:statusVal, priority:priorityVal, category:categoryVal, location:locationVal, recurrence:recurrenceVal, recurrenceCount:Number(recCountVal) })
   }
 
   function openLinkedCalendar(calId) {
@@ -138,11 +140,18 @@ export default function ActivityDrawer({ activity, isDraft, channels, owners, ca
           </Field>
         </div>
 
-        <Field label="Category">
-          <select value={categoryVal} onChange={set(setCategoryVal, 'category')}>
-            {ACTIVITY_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>)}
-          </select>
-        </Field>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <Field label="Category">
+            <select value={categoryVal} onChange={set(setCategoryVal, 'category')}>
+              {ACTIVITY_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>)}
+            </select>
+          </Field>
+          <Field label="Location">
+            <select value={locationVal} onChange={set(setLocationVal, 'location')}>
+              {ACTIVITY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </Field>
+        </div>
 
         {/* Recurrence — draft only */}
         {isDraft && (
